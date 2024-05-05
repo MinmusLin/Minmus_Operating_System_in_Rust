@@ -4,7 +4,7 @@
 
 
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesClass{tongjithesis}[2022/05/16 Tongji Thesis Class]
+\ProvidesClass{tongjithesis}[2024/05/05 Tongji Thesis Class]
 
 
 % 加载 ctexart 类
@@ -22,8 +22,8 @@
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % 使用句点（．）替换句号（。）
-\catcode`\。=\active
-\newcommand{。}{\ifmmode\text{．}\else ．\fi}
+% \catcode`\。=\active
+% \newcommand{。}{\ifmmode\text{．}\else ．\fi}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
@@ -56,19 +56,19 @@
     \fancyput*(\ifodd\value{page} -0.8cm\else 16.7cm\fi,-8.5cm){$|$}
     \fancyput*(\ifodd\value{page} -0.8cm\else 16.7cm\fi,-9.1cm){$|$}
     \fancyput*(\ifodd\value{page} -0.8cm\else 16.7cm\fi,-9.7cm){$|$}
-    \fancyput*(\ifodd\value{page} -1.0cm\else 16.5cm\fi,-10.3cm){装}
+    \fancyput*(\ifodd\value{page} -0.93cm\else 16.57cm\fi,-10.3cm){装}
     \fancyput*(\ifodd\value{page} -0.8cm\else 16.7cm\fi,-10.9cm){$|$}
     \fancyput*(\ifodd\value{page} -0.8cm\else 16.7cm\fi,-11.5cm){$|$}
     \fancyput*(\ifodd\value{page} -0.8cm\else 16.7cm\fi,-12.1cm){$|$}
     \fancyput*(\ifodd\value{page} -0.8cm\else 16.7cm\fi,-12.7cm){$|$}
     \fancyput*(\ifodd\value{page} -0.8cm\else 16.7cm\fi,-13.3cm){$|$}
-    \fancyput*(\ifodd\value{page} -1.0cm\else 16.5cm\fi,-13.9cm){订}
+    \fancyput*(\ifodd\value{page} -0.93cm\else 16.57cm\fi,-13.9cm){订}
     \fancyput*(\ifodd\value{page} -0.8cm\else 16.7cm\fi,-14.5cm){$|$}
     \fancyput*(\ifodd\value{page} -0.8cm\else 16.7cm\fi,-15.1cm){$|$}
     \fancyput*(\ifodd\value{page} -0.8cm\else 16.7cm\fi,-15.7cm){$|$}
     \fancyput*(\ifodd\value{page} -0.8cm\else 16.7cm\fi,-16.3cm){$|$}
     \fancyput*(\ifodd\value{page} -0.8cm\else 16.7cm\fi,-16.9cm){$|$}
-    \fancyput*(\ifodd\value{page} -1.0cm\else 16.5cm\fi,-17.5cm){线}
+    \fancyput*(\ifodd\value{page} -0.93cm\else 16.57cm\fi,-17.5cm){线}
     \fancyput*(\ifodd\value{page} -0.8cm\else 16.7cm\fi,-18.1cm){$|$}
     \fancyput*(\ifodd\value{page} -0.8cm\else 16.7cm\fi,-18.7cm){$|$}
     \fancyput*(\ifodd\value{page} -0.8cm\else 16.7cm\fi,-19.3cm){$|$}
@@ -120,7 +120,7 @@
 % 设置有序列表与无序列表格式
 \RequirePackage{enumerate} % 下面用到了 enumerate
 \RequirePackage{enumitem}
-\setlist[itemize]{labelindent=2em,leftmargin=*,itemsep=0pt,parsep=0pt}
+\setlist[itemize]{labelindent=1em,leftmargin=*,itemsep=0pt,parsep=0pt}
 \setlist[enumerate]{labelindent=2em,leftmargin=*,itemsep=0pt,parsep=0pt}
 
 
@@ -141,7 +141,7 @@
 \renewcommand{\cftdotsep}{1}
 \setlength{\cftsecindent}{0em} % 符合毕业设计模板（理工类）一级标题顶格要求
 \setlength{\cftsubsecindent}{1em} % 符合毕业设计模板（理工类）二级标题对齐一级标题文字要求
-\setlength{\cftsubsubsecindent}{4em} % 符合毕业设计模板（理工类）三级标题对齐一级标题第四字要求
+\setlength{\cftsubsubsecindent}{2em} % 符合毕业设计模板（理工类）三级标题对齐一级标题第四字要求
 \setlength{\cftbeforesecskip}{0pt} % 5?
 \setlength{\cftbeforesubsecskip}{0pt} % 3?
 \setlength{\cftbeforesubsubsecskip}{0pt}
@@ -198,7 +198,7 @@
     \fancyhf{}
     \pagenumbering{Roman} % 页数使用罗马数字
     \fancyhead[LO,RE]{~ \includegraphics[height=1.14cm]{figures/tongji.pdf}~} % 页眉左侧插入“同济大学”字样
-    \fancyhead[RO,LE]{\large ~同济大学操作系统课程设计~\\}
+    \fancyhead[RO,LE]{\large ~MinmusOS项目说明文档~\\}
     \fancyfoot[C]{\large \thepage}
     \renewcommand{\headrulewidth}{1.8pt} % 页眉横线
     \renewcommand{\footrulewidth}{0pt}
@@ -211,7 +211,7 @@
     \fancyhf{}
     \pagenumbering{arabic}
     \fancyhead[LO,RE]{~ \includegraphics[height=1.14cm]{figures/tongji.pdf}~} % 页眉左侧插入“同济大学”字样
-    \fancyhead[RO,LE]{\large ~同济大学操作系统课程设计~\\}
+    \fancyhead[RO,LE]{\large ~MinmusOS项目说明文档~\\}
     \fancyfoot[RO]{{\large 共\quad \pageref{LastPage}\quad 页\quad 第\quad \thepage \quad 页}}
     \fancyfoot[LE]{{\large 第\quad \thepage \quad 页\quad 共\quad \pageref{LastPage}\quad 页}}
     \renewcommand{\headrulewidth}{1.8pt} % 页眉横线
@@ -228,37 +228,32 @@
       afterskip={.5\baselineskip},        % 段后 0.5 行
      },
     subsection={ % 二级标题
-            format={\heiti\zihao{5}},         % 格式：五号黑体
-            aftername={\space},               % 序号与题名间空 1 格
-            beforeskip={.5\baselineskip},     % 段前 0.5 行
-            afterskip={.5\baselineskip},      % 段后 0.5 行
+            format={\heiti\zihao{5}},     % 格式：五号黑体
+            aftername={\space},           % 序号与题名间空 1 格
+            beforeskip={.5\baselineskip}, % 段前 0.5 行
+            afterskip={.5\baselineskip},  % 段后 0.5 行
         },
     subsubsection={ % 三级标题
-            format={\heiti\zihao{5}},         % 格式：五号黑体
-            aftername={\space},               % 序号与题名间空 1 格
-            beforeskip={.5\baselineskip},     % 段前 0.5 行
-            afterskip={.5\baselineskip},      % 段后 0.5 行
-            indent={2em},                     % 缩进 2 个汉字符
+            format={\heiti\zihao{5}},     % 格式：五号黑体
+            aftername={\space},           % 序号与题名间空 1 格
+            beforeskip={.5\baselineskip}, % 段前 0.5 行
+            afterskip={.5\baselineskip},  % 段后 0.5 行
         },
     paragraph={ % 四级标题
-            format={\heiti\zihao{5}},         % 格式：五号黑体
-            numbering=true,                   % 启用编号
-            number={\Alph{paragraph}},        % 编号格式：使用大写字母作为四级标题
-            aftername={.\space},              % 序号后带点和一个空格
-            beforeskip={0pt},                 % 段前 0 行
-            afterskip={0pt},                  % 段后 0 行
-            indent={2em},                     % 缩进 2 个汉字符
-            aftertitle={\par},                % 标题后添加一个空行
+            format={\heiti\zihao{5}},     % 格式：五号黑体
+            aftername={\space},           % 序号与题名间空 1 格
+            beforeskip={.5\baselineskip}, % 段前 0.5 行
+            afterskip={0pt},              % 段后 0 行
+            indent={2em},                 % 缩进 2 个汉字符
+            aftertitle={\par},            % 标题后添加一个空行
         },
     subparagraph={ % 五级标题
-            format={\heiti\zihao{5}},         % 格式：五号黑体
-            numbering=true,                   % 启用编号
-            number={\alph{subparagraph}},     % 编号格式：使用小写字母作为五级标题
-            aftername={.\space},              % 序号后带点和一个空格
-            beforeskip={0pt},                 % 段前 0 行
-            afterskip={0pt},                  % 段后 0 行
-            indent={2em},                     % 缩进 2 个汉字符
-            aftertitle={\par},                % 标题后添加一个空行
+            format={\heiti\zihao{5}},     % 格式：五号黑体
+            aftername={\space},           % 序号与题名间空 1 格
+            beforeskip={.5\baselineskip}, % 段前 0.5 行
+            afterskip={0pt},              % 段后 0 行
+            indent={2em},                 % 缩进 2 个汉字符
+            aftertitle={\par},            % 标题后添加一个空行
         }
 }
 
@@ -289,8 +284,21 @@
     \zihao{-3}\oldtabular[#1]
 }{\renewcommand{\arraystretch}{1.2}\endoldtabular
 }
-\RequirePackage{ulem}
-\newcommand{\ulinecentered}[1]{\uline{\makebox[20em][c]{#1}}}
+
+\RequirePackage{ulem,calc}
+\newlength{\covertextwidth}
+\newlength{\covermaxwidth}
+\newcommand{\ulinecentered}[1]{
+    \setlength{\covertextwidth}{\widthof{#1}}
+    \setlength{\covermaxwidth}{20em} % Set the maximum width you allow
+    \ifthenelse{\lengthtest{\covertextwidth > \covermaxwidth}}{
+        % Calculate scale factor and scale down text if too wide
+        \pgfmathsetmacro{\scalefactor}{\covermaxwidth/\covertextwidth}
+        \uline{\makebox[\covermaxwidth][c]{\scalebox{\scalefactor}[1]{#1}}}
+    }{
+        \uline{\makebox[\covermaxwidth][c]{#1}} % Use normal text if within the limit
+    }
+}
 
 
 % 加载包部分结束，此后开始定义内容 Layout
@@ -322,7 +330,7 @@
             \vskip 30pt
 
             % 黑体小初
-            \zihao{-0}\heiti{同济大学操作系统课程设计}
+            \zihao{-0}\heiti{项目说明文档}
             \vskip 60pt
 
             % 黑体小二
@@ -391,13 +399,3 @@
     }
     \par
 }
-
-\makeatletter
-\def\clearchapterpage{
-    \@ifclasswith{tongjithesis}{twoside}{
-        \cleardoublepage % 如果使用双面模式的 tongjithesis 文档类，使用 \cleardoublepage 清除页面
-    }{
-        \clearpage % 否则，使用 \clearpage 清除页面
-    }
-}
-\makeatother
