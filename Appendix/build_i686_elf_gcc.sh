@@ -1,10 +1,12 @@
 #!/usr/bin/bash
 
 BINUTIL_VERSION=2.37
-BINUTIL_URL=https://mirrors.aliyun.com/gnu/binutils/binutils-2.37.tar.xz?spm=a2c6h.25603864.0.0.5f4539e11JPeX4
+BINUTIL_URL="https://mirrors.aliyun.com/gnu/binutils/binutils-2.37.tar.xz?" \
+            "spm=a2c6h.25603864.0.0.5f4539e11JPeX4"
 
 GCC_VERSION=11.2.0
-GCC_URL=https://mirrors.aliyun.com/gnu/gcc/gcc-11.2.0/gcc-11.2.0.tar.xz?spm=a2c6h.25603864.0.0.6c5d9698I99N4Y
+GCC_URL="https://mirrors.aliyun.com/gnu/gcc/gcc-11.2.0/gcc-11.2.0.tar.xz?" \
+        "spm=a2c6h.25603864.0.0.6c5d9698I99N4Y"
 
 GCC_SRC="gcc-${GCC_VERSION}"
 BINUTIL_SRC="binutils-${BINUTIL_VERSION}"
@@ -25,7 +27,7 @@ then
         && tar -xf "${GCC_SRC}.tar") || exit
     rm -f "${GCC_SRC}.tar"
 else
-    echo "skip downloading gcc"
+    echo "Skip downloading gcc"
 fi
 
 if [ ! -d "${HOME}/toolchain/${BINUTIL_SRC}" ]
@@ -34,7 +36,7 @@ then
         && tar -xf "${BINUTIL_SRC}.tar") || exit
     rm -f "${BINUTIL_SRC}.tar"
 else
-    echo "skip downloading binutils"
+    echo "Skip downloading binutils"
 fi
 
 echo "Building Binutils 2.37 ..."

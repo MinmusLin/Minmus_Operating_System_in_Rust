@@ -18,11 +18,14 @@ MinmusOS：基于C语言的操作系统的设计与实现。
 * `/Appendix`
 附录
 
+  * `build_i686_elf_gcc.sh`
+  构建  `i686-elf-gcc` 交叉编译器 `Shell` 脚本文件
+
 * `/LaTeX`
 项目说明文档 $\LaTeX$ 源代码
 
 * `/Machine`
-QEMU 虚拟机文件夹
+QEMU 模拟机文件夹
 
 * `/MinmusOS`
 MinmusOS 源代码
@@ -33,4 +36,4 @@ Email: minmuslin@outlook.com
 
 ## 文档更新日期
 
-2024年5月4日
+2024年5月5日
