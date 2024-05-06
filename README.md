@@ -6,7 +6,7 @@ Minmus_Operating_System
 
 ## 项目简介
 
-MinmusOS: The Design and Implementation of an Operating System Based on C Language.
+MinmusOS: The design and implementation of an operating system based on C language.
 
 MinmusOS：基于C语言的操作系统的设计与实现。
 
@@ -36,4 +36,4 @@ Email: minmuslin@outlook.com
 
 ## 文档更新日期
 
-2024年5月5日
+2024年5月7日
