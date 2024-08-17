@@ -123,8 +123,8 @@
 \RequirePackage{circledsteps} % 用于带圆圈的数字
 \setlistdepth{2}
 \setlist[enumerate]{nosep,labelsep=0pt}
-\setlist[enumerate,1]{label=（\arabic*）,left=2em,nosep,labelsep=0pt,wide=\parindent}
-\setlist[enumerate,2]{label=\Circled{\arabic*},nosep,labelsep=0pt,labelwidth=1em,listparindent=0pt}
+\setlist[enumerate,1]{label=（\arabic*）,left=2em,nosep,labelsep=3pt,wide=\parindent}
+\setlist[enumerate,2]{label=\Circled{\arabic*},left=4em,nosep,labelsep=3pt,labelwidth=1em,listparindent=0pt}
 \setlist[itemize]{nosep}
 \setlist[itemize,1]{wide=\parindent}
 \setlist[itemize,2]{wide=2\parindent}
