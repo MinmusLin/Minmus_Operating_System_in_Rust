@@ -1,1 +1,0 @@
-qemu-system-i386 -s -m 1G -rtc base=utc -no-reboot -machine q35 -no-shutdown -d cpu_reset -d trace:ide_dma_cb -serial tcp::10001,server,nowait -drive id=disk,file="disk.vdi",if=none -drive id=cdrom,file="MinmusOS.iso",readonly=on,if=none,format=raw -device ahci,id=ahci -device ide-hd,drive=disk,bus=ahci.0 -device ide-cd,drive=cdrom,bus=ahci.1 -monitor telnet::10002,server,nowait
