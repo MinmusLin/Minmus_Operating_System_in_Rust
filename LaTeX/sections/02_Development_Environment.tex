@@ -1,6 +1,6 @@
 \section{开发环境}\label{sec:DevelopmentEnvironment}
 
-在本节（\cref{sec:DevelopmentEnvironment}）中，
+在本节（\cref{sec:DevelopmentEnvironment}）中，笔者将详细介绍 MinmusOS 项目的开发环境，包括使用的操作系统（Windows 11）、开发工具（Windows Subsystem for Linux、Ubuntu 22.04 LTS、QEMU 模拟器、JetBrains RustRover、Rust 语言），并深入讲解开发环境的搭建过程、项目配置及自动化构建的设置。最后，笔者还将介绍如何在配置好的环境中运行 MinmusOS 项目，以确保开发者能够顺利进行开发和调试。
 
 \subsection{开发环境概述}
 
@@ -158,20 +158,22 @@ Ubuntu 22.04 LTS可以为操作系统内核的开发提供一个稳定、高效�
 
 \begin{enumerate}
     \item 启动Windows PowerShell，执行命令\texttt{wsl --install Ubuntu-22.04}，以安装Ubuntu 22.04 LTS版本到WSL，命令执行结果如\cref{fig:ConfigureUbuntu}。
-          \begin{figure}[htbp]
-              \centering
-              \includegraphics[width=0.8\textwidth]{figures/ConfigureUbuntu.png}
-              \caption{配置Ubuntu 22.04 LTS}
-              \label{fig:ConfigureUbuntu}
-          \end{figure}
     \item 在Ubuntu中执行命令\texttt{lsb\_release -a}，以查看Linux发行版的详细信息，命令执行结果如\cref{fig:UbuntuVersion}，以验证安装成功。
-          \begin{figure}[htbp]
-              \centering
-              \includegraphics[width=0.5\textwidth]{figures/UbuntuVersion.png}
-              \caption{Ubuntu版本信息}
-              \label{fig:UbuntuVersion}
-          \end{figure}
 \end{enumerate}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/ConfigureUbuntu.png}
+    \caption{配置Ubuntu 22.04 LTS}
+    \label{fig:ConfigureUbuntu}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.6\textwidth]{figures/UbuntuVersion.png}
+    \caption{Ubuntu版本信息}
+    \label{fig:UbuntuVersion}
+\end{figure}
 
 \subsubsection{配置Rust语言开发环境}
 
@@ -194,6 +196,13 @@ Rust是一种注重安全、并发和性能的系统编程语言，旨在帮助�
               \includegraphics[width=0.8\textwidth]{figures/ConfigureRemoteDevelopment.png}
               \caption{配置远程开发}
               \label{fig:ConfigureRemoteDevelopment}
+          \end{figure}
+    \item 在“文件”>“设置”>“插件（主机）”中，安装插件“Chinese (Simplified) Language Pack / 中文语言版”和“Makefile Language”，如\cref{fig:RustRoverPlugins}。
+          \begin{figure}[htbp]
+              \centering
+              \includegraphics[width=0.6\textwidth]{figures/RustRoverPlugins.png}
+              \caption{安装RustRover插件}
+              \label{fig:RustRoverPlugins}
           \end{figure}
     \item 新建终端，执行\cref{lst:ConfigureRust}，以配置Rust工具链，代码执行结果如\cref{fig:RustVersion}，以验证安装成功。每行代码的作用如下：
           \begin{enumerate}
@@ -239,4 +248,355 @@ cargo --version
     \item \texttt{qemu-system-x86}：qemu-system-x86是QEMU（Quick Emulator）项目的一部分，它是一个功能强大的开源模拟器和虚拟化工具。特别地，qemu-system-x86是用于模拟x86和x86\_64（也称为AMD64）架构计算机的程序。这使得开发者和测试者可以在不同的操作系统和硬件配置上模拟和运行软件，而无需物理硬件。
 \end{enumerate}
 
+\subsection{MinmusOS项目配置}
+
+\subsubsection{项目工作空间和编译选项配置}
+
+\begin{listing}[htbp]
+    \begin{minted}{toml}
+[unstable]
+build-std = ["core", "compiler_builtins", "alloc"]
+build-std-features = ["compiler-builtins-mem"]
+    \end{minted}
+    \caption{.cargo/config.toml配置文件}\label{lst:ConfigToml}
+\end{listing}
+
+配置文件.cargo/config.toml（\cref{lst:ConfigToml}）的作用如下：
+
+\begin{enumerate}
+    \item \texttt{build-std}：这个选项用于指定需要构建的标准库部分。在嵌入式开发或操作系统开发中，通常没有完整的标准库支持，所以需要指定要构建哪些核心库。
+          \begin{enumerate}
+              \item \texttt{core}：提供基础的Rust功能，适用于没有操作系统支持的环境。
+              \item \texttt{compiler\_builtins}：提供编译器相关的内建函数，这在没有标准库的情况下非常重要。
+              \item \texttt{alloc}：提供内存分配支持，但不依赖全局堆，适用于特定的内存管理环境。
+          \end{enumerate}
+    \item \texttt{build-std-features}：指定构建这些标准库时要启用的特性。\texttt{compiler-builtins-mem}是为了让\texttt{compiler\_builtins}包含内存操作的实现，这在操作系统内核开发中可能会用到。
+\end{enumerate}
+
+\begin{listing}[htbp]
+    \begin{minted}{toml}
+[workspace]
+members = ["boot", "bootloader", "kernel", "apps/*"]
+resolver = "2"
+
+[workspace.package]
+version = "0.4.0"
+authors = ["Jishen Lin <minmuslin@outlook.com>"]
+edition = "2021"
+
+[profile.dev]
+panic = "abort"
+opt-level = 1
+
+[profile.release]
+panic = "abort"
+opt-level = 1
+
+[profile.dev.package.boot]
+opt-level = "s"
+codegen-units = 1
+debug = false
+overflow-checks = false
+
+[profile.release.package.boot]
+opt-level = "s"
+codegen-units = 1
+debug = false
+overflow-checks = false
+    \end{minted}
+    \caption{Cargo.toml配置文件}\label{lst:CargoToml}
+\end{listing}
+
+配置文件Cargo.toml（\cref{lst:CargoToml}）的作用如下：
+
+\begin{enumerate}
+    \item \texttt{[workspace]}：定义了工作空间，包含多个子项目。
+    \item \texttt{resolver = "2"}：使用Cargo 2的依赖解析器，它提供了更严格的依赖解析机制，尤其是在处理不同版本的依赖时更加可靠。
+    \item \texttt{[workspace.package]}：定义了整个工作空间的元数据，如版本号、作者信息和Rust的本本。
+    \item \texttt{[profile.dev]}和\texttt{[profile.release]}：配置了开发和发布模式下的编译选项：
+          \begin{enumerate}
+              \item \texttt{panic = "abort"}：设置 panic 策略为中止，这在嵌入式或操作系统开发中非常常见，因为通常没有复杂的错误恢复机制。
+              \item \texttt{opt-level}：优化级别，设为1以提高编译速度。
+              \item \texttt{codegen-units}：减少代码生成单元数量，有助于提升优化效果。
+              \item \texttt{overflow-checks}：禁用溢出检查以提高性能，特别是在关键路径的代码中。
+          \end{enumerate}
+\end{enumerate}
+
+\subsubsection{特定硬件平台的目标配置}
+
+\begin{listing}[htbp]
+    \begin{minted}{json}
+{
+  "arch": "x86",
+  "cpu": "i386",
+  "data-layout": "e-m:e-p:32:32-p270:32:32-p271:32:32-p272:64:64-i128:128-f64:32:64-f80:32-n8:16:32-S128",
+  "dynamic-linking": false,
+  "executables": true,
+  "linker-flavor": "ld.lld",
+  "linker": "rust-lld",
+  "llvm-target": "i386-unknown-none-code16",
+  "max-atomic-width": 64,
+  "position-independent-executables": false,
+  "disable-redzone": true,
+  "target-c-int-width": "32",
+  "target-pointer-width": "32",
+  "target-endian": "little",
+  "panic-strategy": "abort",
+  "os": "none",
+  "vendor": "unknown",
+  "relocation-model": "static"
+}
+    \end{minted}
+    \caption{x86\_16-minmus.json配置文件}\label{lst:x86-16-Minmus}
+\end{listing}
+
+\begin{listing}[htbp]
+    \begin{minted}{json}
+{
+  "arch": "x86",
+  "cpu": "i386",
+  "data-layout": "e-m:e-p:32:32-p270:32:32-p271:32:32-p272:64:64-i128:128-f64:32:64-f80:32-n8:16:32-S128",
+  "dynamic-linking": false,
+  "executables": true,
+  "linker-flavor": "ld.lld",
+  "linker": "rust-lld",
+  "llvm-target": "i386-unknown-none",
+  "max-atomic-width": 64,
+  "position-independent-executables": false,
+  "disable-redzone": true,
+  "target-c-int-width": "32",
+  "target-pointer-width": "32",
+  "target-endian": "little",
+  "panic-strategy": "abort",
+  "os": "none",
+  "vendor": "unknown",
+  "relocation-model": "static",
+  "features": "+soft-float,-sse,-mmx"
+}
+    \end{minted}
+    \caption{x86\_32-minmus.json配置文件}\label{lst:x86-32-Minmus}
+\end{listing}
+
+这些JSON文件定义了自定义的目标平台，分别对应16位和32位的x86架构。
+
+配置文件x86\_16-minmus.json（\cref{lst:x86-16-Minmus}）和x86\_32-minmus.json（\cref{lst:x86-32-Minmus}）的作用如下：
+
+\begin{enumerate}
+    \item \texttt{arch}和\texttt{cpu}：定义目标架构和处理器类型。在这里都设置为 x86 和 i386，分别表示 x86 架构和 Intel 386 处理器。
+    \item \texttt{data-layout}：定义数据在内存中的布局规则，包括指针大小、对齐方式等。这对于内存管理和操作系统内核开发至关重要。
+    \item \texttt{dynamic-linking}和\texttt{executables}：表示是否支持动态链接和可执行文件。不使用动态链接，这在内核或嵌入式系统中很常见。
+    \item \texttt{linker-flavor}和\texttt{linker}：指定链接器的类型和名称，ld.lld 是 LLVM 的链接器 rust-lld，专门为生成无操作系统的裸机代码而设计。
+    \item \texttt{llvm-target}：指定 LLVM 的目标三元组，决定生成哪种目标代码。
+    \item \texttt{max-atomic-width}：最大支持的原子操作宽度，对于 i386 处理器设置为 64 位。
+    \item \texttt{position-independent-executables}：设置为 false，表示生成的二进制不是位置无关代码，这在操作系统开发中通常是关闭的。
+    \item \texttt{disable-redzone}：关闭 red zone（堆栈底部的一个特殊区域），因为在操作系统开发中通常不使用这种优化。
+    \item \texttt{target-c-int-width}和\texttt{target-pointer-width}：定义 C 语言中的 int 和指针的宽度，分别为 32 位。
+    \item \texttt{target-endian}：定义目标平台的字节序，设置为 little 表示小端序。
+    \item \texttt{panic-strategy}：设定 panic 策略为 abort，这与 .cargo/config.toml 文件中的设置相一致。
+    \item \texttt{relocation-model}：设定为 static，表示使用静态链接模式，这在操作系统内核开发中非常普遍。
+\end{enumerate}
+
+本项目使用了两个不同的 JSON 文件定义了不同的目标配置，分别用于 16 位和 32 位的 x86 代码编译。以下是需要两个 JSON 文件的原因：
+
+\begin{enumerate}
+    \item \textbf{不同的目标模式（16位和32位）}：
+          \begin{enumerate}
+              \item \textbf{x86\_16-minmus.json}：这个文件配置了 16 位的目标架构（i386），通常用于生成低级别的启动代码（如引导加载程序和启动代码）。在操作系统开发中，启动代码通常在实模式（Real Mode）下运行，这时 CPU 处于 16 位模式，因此需要专门的 16 位编译目标。
+              \item \textbf{x86\_32-minmus.json}：这个文件配置了 32 位的目标架构（i386），用于生成操作系统内核和其他高级别应用程序的代码。内核通常运行在保护模式（Protected Mode）下，此时 CPU 处于 32 位模式，因此需要 32 位编译目标。
+          \end{enumerate}
+    \item \textbf{分离启动代码与内核代码}：
+          \begin{enumerate}
+              \item \textbf{启动代码}：引导加载程序（bootloader）和启动代码（boot）通常需要用 16 位模式编译，这是因为当计算机启动时，处理器处于实模式（16 位）。引导加载程序负责加载内核并将 CPU 从 16 位模式切换到 32 位模式，因此它必须与 CPU 的初始模式相兼容。
+              \item \textbf{内核代码}：内核代码通常运行在保护模式下，在这个模式下，CPU 以 32 位模式运行。内核和高级别应用程序的编译需要使用 32 位目标配置。
+          \end{enumerate}
+    \item \textbf{编译器和链接器的配置差异}：
+          \begin{enumerate}
+              \item \textbf{指令集和数据布局}：16 位和 32 位模式下，指令集的使用、数据布局和指针宽度等方面都存在显著差异。这些差异在操作系统开发中至关重要，因此必须使用不同的目标配置来确保生成的代码能够正确运行。
+              \item \textbf{链接器行为}：16 位和 32 位模式下的链接器行为也有所不同，尤其是在处理可执行文件格式、地址空间和段寄存器的管理时。因此，不同的 JSON 文件能够为这两种模式提供正确的编译和链接选项。
+          \end{enumerate}
+    \item \textbf{适应硬件平台的要求}：在操作系统的启动过程中，需要直接访问硬件并执行一些低级别的操作，比如设置段寄存器、配置中断向量表等。这些操作通常是在 16 位模式下完成的，因此需要专门的 16 位编译配置。进入 32 位模式后，内核需要管理内存分页、任务切换和其他复杂操作，这些都依赖于 32 位的编译目标。
+    \item \textbf{提高代码可维护性}：使用两个不同的 JSON 文件可以将代码编译过程模块化。引导加载程序和内核可以独立编译和调试，彼此之间的依赖关系清晰明了，这有助于简化开发过程并提高代码的可维护性。
+\end{enumerate}
+
+两个 JSON 文件分别为 16 位和 32 位的目标架构提供了不同的编译配置，确保生成的代码能够在各自的模式下正确执行。这种配置使得在操作系统开发过程中，可以同时管理启动过程和内核运行，从而确保系统的稳定性和正确性。
+
+\subsubsection{Rust工具链配置}
+
+rust-toolchain.toml 是一个用于配置 Rust 项目所需工具链的文件（\cref{lst:RustToolchainToml}）。它可以帮助为特定的 Rust 项目指定编译器版本及相关组件，从而确保项目在不同的开发环境中具有一致性。
+
+\begin{listing}[htbp]
+    \begin{minted}{toml}
+[toolchain]
+channel = "nightly"
+components = ["rustfmt", "rust-src"]
+    \end{minted}
+    \caption{rust-toolchain.toml配置文件}\label{lst:RustToolchainToml}
+\end{listing}
+
+\begin{enumerate}
+    \item \texttt{channel}：指定项目使用的 Rust 工具链版本。
+    \item \texttt{components = ["rustfmt", "rust-src"]}：指定要安装的额外组件。
+          \begin{enumerate}
+              \item \texttt{rustfmt}：Rust 的代码格式化工具，用于自动格式化 Rust 代码，使其符合社区标准和项目的风格指南。
+              \item \texttt{rust-src}：Rust 标准库的源码。
+          \end{enumerate}
+\end{enumerate}
+
+rust-toolchain.toml 的作用：
+
+\begin{enumerate}
+    \item \textbf{工具链版本固定}：通过指定 channel，这个文件确保了所有开发者和构建环境使用相同版本的 Rust 编译器，避免了因为编译器版本差异导致的潜在兼容性问题。
+    \item \textbf{自动安装指定组件}：在项目所在目录中添加这个文件后，当你在该目录运行 Rust 工具（如 cargo build）时，Rust 工具链管理器 rustup 会自动确保指定的工具链和组件已安装。如果它们还没有安装，rustup 会自动下载和配置它们。
+    \item \textbf{项目一致性保障}：无论项目是在本地开发环境、CI/CD 环境，还是在其他开发者的机器上，这个文件都确保了每次构建使用的工具链和组件完全一致，减少了因为环境差异导致的错误。
+\end{enumerate}
+
+\subsubsection{项目自动化构建过程配置}
+
+Makefile 是一种用于自动化构建过程的文件，它定义了一组规则，用于编译和链接程序，以及管理项目中的各种文件和任务。在软件开发中，特别是像操作系统开发这种复杂的项目，Makefile 的作用至关重要。以下是 Makefile 的主要作用：
+
+\begin{enumerate}
+    \item \textbf{自动化构建过程}：Makefile 可以自动执行编译、链接和生成可执行文件的所有步骤。开发者只需运行 make 命令，Makefile 会自动根据定义的规则来编译源代码、链接目标文件，并生成最终的可执行文件。这大大简化了编译过程，减少了手动编译的复杂性。
+    \item \textbf{管理依赖关系}：Makefile 可以追踪源代码文件之间的依赖关系。当某个源文件被修改时，Makefile 只会重新编译受影响的文件，而不会重新编译整个项目。这种增量编译机制可以节省大量的时间，特别是在处理大型项目时非常高效。
+    \item \textbf{定义可重复的构建步骤}：在 Makefile 中，开发者可以定义各种任务（称为目标），如编译代码、生成文档、运行测试、清理编译产物等。通过这些定义，构建过程变得可重复且易于管理，确保不同开发者在不同环境中能一致地构建项目。
+    \item \textbf{多平台支持}：Makefile 可以通过条件判断和变量定义来支持多种编译环境和平台。例如，在一个跨平台项目中，可以在 Makefile 中定义特定平台的编译选项，确保在不同操作系统或硬件架构上正确构建项目。
+    \item \textbf{简化项目管理}：对于复杂项目，Makefile 可以帮助开发者组织和管理多个模块或子项目。例如，可以定义不同的构建目标来编译各个模块，然后将它们链接在一起生成最终的可执行文件。此外，Makefile 还可以管理第三方库、生成中间文件、打包发布版本等。
+    \item \textbf{集成构建工具}：Makefile 可以与其他构建工具和脚本语言集成。例如，可以调用外部的编译器、链接器、测试框架、文档生成工具，甚至其他 Makefile，以实现更加复杂的构建流程。
+    \item \textbf{灵活性和可扩展性}：Makefile 提供了灵活的语法和功能，如变量定义、条件语句、循环等，使得开发者可以根据项目的具体需求，自定义各种构建过程。这种灵活性使得 Makefile 能适应从简单到复杂的各种项目需求。
+\end{enumerate}
+
+\begin{listing}[htbp]
+    \begin{minted}{makefile}
+MCOPY := mcopy
+OBJCOPY := objcopy
+DISK_LAYOUT := "label: dos\n\
+                label-id: 0xfffb00b5\n\
+                device: disk.img\n\
+                unit: sectors\n\
+                sector-size: 512\n\
+                disk.img1: start=2048, size=2048, type=0\n\
+                disk.img2: start=4096, size=32768, type=0\n\
+                disk.img3: start=36864, size=94208, type=6"
+APPS := $(notdir $(patsubst %/,%,$(shell find apps -mindepth 1 -maxdepth 1 -type d)))
+FILES := $(notdir $(wildcard files/*))
+    \end{minted}
+    \caption{Makefile构建文件（变量定义）}\label{lst:MakefileVariable}
+\end{listing}
+
+Makefile 构建文件首先定义了一些常用的变量，如 MCOPY 和 OBJCOPY，用于指定执行相关操作的命令。DISK\_LAYOUT 定义了磁盘布局，用于创建磁盘映像文件。APPS 变量使用 shell 命令找到 apps 目录下的所有子目录，并将它们存储为应用程序列表，FILES 变量则包含了 files 目录中的所有文件。这些变量简化了后续命令的编写和管理（\cref{lst:MakefileVariable}）。
+
+\begin{listing}[htbp]
+    \begin{minted}{makefile}
+.PHONY: clean
+clean:
+    @echo "[INFO] Cleaning up..."
+    @cargo clean
+    @rm -rf build
+    @echo "[INFO] Cleanup complete."
+    \end{minted}
+    \caption{Makefile构建文件（clean命令）}\label{lst:MakefileClean}
+\end{listing}
+
+clean 命令是一个伪目标（PHONY），用于清理构建生成的文件。这个命令通过 cargo clean 清除 Rust 构建生成的中间文件，并删除 build 目录，确保整个项目处于干净状态，为下一次构建做好准备（\cref{lst:MakefileClean}）。
+
+\begin{listing}[htbp]
+    \begin{minted}{makefile}
+.PHONY: build
+build:
+    @echo "[INFO] Building boot, bootloader, and kernel..."
+    @cargo build --target=x86_16-minmus.json --package=boot
+    @cargo build --target=x86_16-minmus.json --package=bootloader
+    @cargo build --target=x86_32-minmus.json --package=kernel
+    @echo "[INFO] Building applications..."
+    $(foreach app,$(APPS),cargo build --target=x86_32-minmus.json --package=$(app);)
+    \end{minted}
+    \caption{Makefile构建文件（build命令）}\label{lst:MakefileBuild}
+\end{listing}
+
+build 命令用于编译项目的各个模块。它首先编译 boot 和 bootloader，使用 16 位的目标配置文件 x86\_16-minmus.json，然后编译内核和所有应用程序，使用 32 位目标配置文件 x86\_32-minmus.json。这个命令确保所有模块都按正确的配置进行编译，为后续步骤做好准备（\cref{lst:MakefileBuild}）。
+
+\begin{listing}[htbp]
+    \begin{minted}{makefile}
+.PHONY: objcopy
+objcopy:
+    @echo "[INFO] Copying ELF binaries to binary format..."
+    @mkdir -p build/apps
+    @$(OBJCOPY) -I elf32-i386 -O binary target/x86_16-minmus/debug/boot build/boot.bin
+    @$(OBJCOPY) -I elf32-i386 -O binary target/x86_16-minmus/debug/bootloader build/bootloader.bin
+    @$(OBJCOPY) -I elf32-i386 -O binary target/x86_32-minmus/debug/kernel build/kernel.bin
+    $(foreach app,$(APPS),$(OBJCOPY) -I elf32-i386 -O binary target/x86_32-minmus/debug/$(app) build/apps/$(app).bin;)   
+    \end{minted}
+    \caption{Makefile构建文件（objcopy命令）}\label{lst:MakefileObjcopy}
+\end{listing}
+
+objcopy 命令负责将编译生成的 ELF 格式二进制文件转换为纯二进制格式。这一步对于生成磁盘映像文件是必要的，因为磁盘引导程序和内核通常需要以特定的二进制格式存储和加载。该命令创建 build/apps 目录并将所有模块和应用程序转换为二进制文件，放置在适当的位置（\cref{lst:MakefileObjcopy}）。
+
+\begin{listing}[htbp]
+    \begin{minted}{makefile}
+.PHONY: image
+image:
+    @echo "[INFO] Creating disk image..."
+    @dd if=/dev/zero of=build/disk.img bs=67108864 count=1
+    @echo "[INFO] Applying disk layout..."
+    @echo $(DISK_LAYOUT) | /sbin/sfdisk build/disk.img
+    @echo "[INFO] Copying boot sector..."
+    @dd if=build/boot.bin of=build/disk.img conv=notrunc
+    @echo "[INFO] Preparing partition..."
+    @dd if=build/disk.img of=build/partition.img bs=512 skip=36864
+    @echo "[INFO] Formatting partition with FAT16..."
+    @mkfs.fat -F 16 build/partition.img
+    @echo "[INFO] Copying files to partition..."
+    $(foreach file,$(FILES),$(MCOPY) -i build/partition.img files/$(file) "::$(file)";)
+    $(foreach app,$(APPS),$(MCOPY) -i build/partition.img build/apps/$(app).bin "::$(app)";)
+    @echo "[INFO] Finalizing disk image..."
+    @dd if=build/partition.img of=build/disk.img bs=512 seek=36864 conv=notrunc
+    @rm -rf build/partition.img
+    @echo "[INFO] Copying bootloader and kernel to disk image..."
+    @dd if=build/bootloader.bin of=build/disk.img bs=512 seek=2048 conv=notrunc
+    @dd if=build/kernel.bin of=build/disk.img bs=512 seek=4096 conv=notrunc        
+    \end{minted}
+    \caption{Makefile构建文件（image命令）}\label{lst:MakefileImage}
+\end{listing}
+
+image 命令创建磁盘映像文件并将所有必要的二进制文件写入其中。首先，它使用 dd 命令创建一个空的磁盘映像文件，并通过 sfdisk 工具应用磁盘布局。接着，将引导扇区复制到磁盘映像中，并格式化指定的分区为 FAT16 文件系统，最后，将应用程序和其他文件复制到磁盘映像的分区中。这一步生成了完整的磁盘映像，包含启动引导程序、内核和所有应用程序（\cref{lst:MakefileImage}）。
+
+\begin{listing}[htbp]
+    \begin{minted}{makefile}
+.PHONY: all
+all: build objcopy image
+    @echo "[INFO] Image creation completed."
+    \end{minted}
+    \caption{Makefile构建文件（all命令）}\label{lst:MakefileAll}
+\end{listing}
+
+all 命令将 build、objcopy 和 image 目标组合在一起，形成一个完整的构建流程。执行 make all 命令将依次执行所有相关步骤，最终生成可运行的磁盘映像文件。这使得开发者可以通过一个简单的命令完成整个构建过程，确保所有步骤都正确执行（\cref{lst:MakefileAll}）。
+
+\begin{listing}[htbp]
+    \begin{minted}{makefile}
+.PHONY: run
+run: all
+    @echo "[INFO] Running system simulation with QEMU..."
+    @echo "[INFO] Press CTRL+C to terminate the simulation at any time."
+    @qemu-system-i386 -drive file=build/disk.img,index=0,media=disk,format=raw,if=ide
+    \end{minted}
+    \caption{Makefile构建文件（run命令）}\label{lst:MakefileRun}
+\end{listing}
+
+run 命令在生成磁盘映像文件后，使用 QEMU 模拟器运行这个映像文件，启动开发中的操作系统。QEMU 通过加载构建好的磁盘映像，模拟一个完整的 x86 计算机系统，使开发者可以在不依赖实际硬件的情况下测试和调试操作系统。这为操作系统的开发和调试提供了极大的便利性（\cref{lst:MakefileRun}）。
+
 \subsection{运行MinmusOS项目}
+
+通过 Makefile，可以灵活管理 MinmusOS 项目的构建、清理和运行过程。
+
+\begin{enumerate}
+    \item \textbf{首次运行或完整构建并启动}：在终端中运行 \texttt{make} 或 \texttt{make run}。这将会：
+          \begin{enumerate}
+              \item 编译项目的所有模块（boot、bootloader、kernel、应用程序）
+              \item 将编译生成的 ELF 文件转换为纯二进制文件
+              \item 生成包含操作系统的磁盘映像文件
+              \item 使用 QEMU 模拟器启动 MinmusOS
+          \end{enumerate}
+    \item \textbf{只构建磁盘映像，不启动}：运行 \texttt{make all}，编译项目的所有模块，生成包含操作系统的磁盘映像文件。
+    \item \textbf{只进行编译，不生成磁盘映像}：运行 \texttt{make build}，仅编译所有模块，但不会生成磁盘映像或启动操作系统。
+    \item \textbf{清理项目}：运行 \texttt{make clean} 清理项目中的所有构建文件，适合在重新构建或遇到问题时使用。
+    \item \textbf{单独生成磁盘映像}：如果已经编译了项目但需要重新生成磁盘映像，运行 \texttt{make image} 即可。
+\end{enumerate}
