@@ -147,7 +147,7 @@
 \renewcommand{\cftdotsep}{1}
 \setlength{\cftsecindent}{0em} % 符合毕业设计模板（理工类）一级标题顶格要求
 \setlength{\cftsubsecindent}{1em} % 符合毕业设计模板（理工类）二级标题对齐一级标题文字要求
-\setlength{\cftsubsubsecindent}{4em} % 符合毕业设计模板（理工类）三级标题对齐一级标题第四字要求
+\setlength{\cftsubsubsecindent}{2.7em} % 符合毕业设计模板（理工类）三级标题对齐一级标题第四字要求
 \setlength{\cftbeforesecskip}{0pt} % 5?
 \setlength{\cftbeforesubsecskip}{0pt} % 3?
 \setlength{\cftbeforesubsubsecskip}{0pt}
