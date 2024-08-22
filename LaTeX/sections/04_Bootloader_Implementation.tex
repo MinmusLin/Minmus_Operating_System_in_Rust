@@ -1,6 +1,6 @@
 \section{引导程序实现}\label{sec:BootloaderImplementation}
 
-在本节（\cref{sec:BootloaderImplementation}）中，
+在本节（\cref{sec:BootloaderImplementation}）中，笔者将详细讨论引导程序的实现，包括其定义、功能和操作系统引导过程的关键组成部分。引导加载器是启动操作系统的核心组件，它负责加载操作系统内核到内存并启动执行。整个引导过程在Rust语言的支持下，增强了系统的安全性和可靠性，通过精心设计的内存操作和错误管理，确保了引导过程的稳定性和效率。
 
 \subsection{引导过程概述}
 
@@ -65,7 +65,7 @@
 
 在引导加载器的第一阶段，由于内存环境非常受限，它无法实现自己的磁盘驱动程序。因此，引导加载器使用 BIOS 中断来访问硬件，执行各种任务，如在屏幕上打印信息或从磁盘读取数据。
 
-BIOS 中断调用是由 BIOS 提供的函数，用于简化和抽象硬件访问。这些中断调用只能在 16 位实模式下工作，因此它们并不适合作为硬件驱动程序，而是仅用于在启动过程中帮助引导加载器工作。当 CPU 进入 32 位保护模式时，BIOS 中断就无法工作，因此内核必须实现自定义的硬件驱动程序。
+BIOS 中断调用是由 BIOS 提供的函数，用于简化和抽象硬件访问。这些中断调用只能在 16 位实模式下工作，因此它们不适合作为硬件驱动程序，而仅用于在启动过程中帮助引导加载器工作。当 CPU 进入 32 位保护模式时，BIOS 中断就无法工作，因此内核必须实现自定义硬件驱动程序。
 
 MinmusOS 的引导加载器使用 BIOS 中断 0x13 从磁盘读取数据。这个中断要求设置一个磁盘地址包（Disk Address Packet，DAP）结构，用于指定要读取的扇区数、逻辑块地址（LBA），以及将数据写入内存的位置。数据结构定义如\cref{lst:DiskAddressPacketDataStructure}所示：
 
@@ -274,7 +274,7 @@ pub fn read_sector(&self) {
 
 \paragraph{方法 \texttt{read\_sectors(sectors: u16)}}
 
-该 read\_sectors 方法（\cref{lst:ReadSectorsMethod}）是 DiskReader 结构体的成员方法，其功能是读取多个连续的扇区数据。方法接受一个参数 sectors，表示需要读取的扇区数量。该方法通过循环调用 read\_sector 方法来逐一读取指定数量的扇区，并适当更新目标内存地址和LBA地址。
+该 read\_sectors 方法（\cref{lst:ReadSectorsBootMethod}）是 DiskReader 结构体的成员方法，其功能是读取多个连续的扇区数据。方法接受一个参数 sectors，表示需要读取的扇区数量。该方法通过循环调用 read\_sector 方法来逐一读取指定数量的扇区，并适当更新目标内存地址和LBA地址。
 
 \begin{listing}[htbp]
     \begin{minted}{rust}
@@ -288,7 +288,7 @@ pub fn read_sectors(&mut self, sectors: u16) {
     }
 }
     \end{minted}
-    \caption{\texttt{read\_sectors(sectors: u16)}方法}\label{lst:ReadSectorsMethod}
+    \caption{\texttt{read\_sectors(sectors: u16)}方法}\label{lst:ReadSectorsBootMethod}
 \end{listing}
 
 以下是对该方法的解释：
@@ -303,7 +303,7 @@ pub fn read_sectors(&mut self, sectors: u16) {
 
 这个方法通过更新内存偏移地址和LBA地址，使得可以连续地读取多个扇区到指定的内存区域中。
 
-\subsubsection{主启动程序（Main Boot Program）}
+\subsubsection{主启动程序（Main Boot Program）}\label{sec:MainBootProgram}
 
 这个模块（\cref{lst:BootSrcMain}）是系统的主入口，使用 Rust 编写。它负责加载并执行 bootloader，并处理初始化中的错误。
 
@@ -324,7 +324,7 @@ extern "C" { static _bootloader_start: u16; }
 #[no_mangle]
 pub extern "C" fn main() -> ! {
     unsafe { asm!("mov ah, 0x00", "mov al, 0x03", "int 0x10"); }
-    print("[INFO] Boot MinmusOS...\r\n\0");
+    print("[INFO] Booting MinmusOS...\r\n\0");
     print("[INFO] Loading Bootloader...\r\n\0");
     let bootloader_start: *const u16 = unsafe { &_bootloader_start };
     let target = bootloader_start as u16;
@@ -474,16 +474,489 @@ SECTIONS {
 
 \begin{listing}[htbp]
     \begin{minted}{rust}
-use std::path::Path;
-
 fn main() {
-    let local_path = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let local_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     println!("cargo:rustc-link-arg-bins=--script={}", local_path.join("linker.ld").display());
 }
     \end{minted}
     \caption{boot/build.rs}\label{lst:BootBuildRust}
 \end{listing}
 
-脚本使用 \texttt{env!("CARGO\_MANIFEST\_DIR")} 来获取环境变量，该变量指向包含 Cargo.toml 文件的目录，即项目的根目录。通过打印特定格式的字符串动态地向 Cargo 传递编译参数。\cref{lst:BootBuildRust}配置了编译器在构建二进制文件时使用自定义的链接器脚本。这通过 \texttt{println!} 输出 \texttt{cargo:rustc-link-arg-bins=--script={}} 实现，其中包含了链接器脚本的路径。通过计算出链接器脚本 linker.ld 的完整路径，并将其传递给编译器作为参数，build.rs 确保了链接过程按照预定义的内存布局和符号解析规则进行。这对于需要精确控制输出二进制格式的低级应用程序（如操作系统内核）是必需的。
+脚本使用 \texttt{env!("CARGO\_MANIFEST\_DIR")} 来获取环境变量，该变量指向包含 Cargo.toml 文件的目录，即项目的根目录。通过打印特定格式的字符串动态地向 Cargo 传递编译参数。\cref{lst:BootBuildRust}配置了编译器在构建二进制文件时使用自定义的链接器脚本。这通过 \texttt{println!} 输出 \texttt{cargo:rustc-link-arg-bins=--script=\{\}} 实现，其中包含了链接器脚本的路径。通过计算出链接器脚本 linker.ld 的完整路径，并将其传递给编译器作为参数，build.rs 确保了链接过程按照预定义的内存布局和符号解析规则进行。这对于需要精确控制输出二进制格式的低级应用程序（如操作系统内核）是必需的。
 
 \subsection{第二阶段引导：保护模式与内核加载}
+
+\subsubsection{保护模式（Protected Mode）}
+
+在保护模式引入之前，实模式（real mode）是x86 CPU上唯一的工作模式。因此，像Intel 80887这样的老旧CPU缺乏内存保护功能。在实模式下，内存使用16位地址进行访问，这意味着最大可寻址内存为1MB。当时，这个限制并不成问题，因为所有系统的内存都不超过640KB。
+
+然而，如今这已成为一个巨大的限制，导致了32位CPU的引入以及一种称为保护模式（protected mode）的新操作模式。保护模式允许使用32位地址访问内存，将可寻址内存的上限提高到了4GB。该模式还引入了许多实模式完全缺乏的新安全功能，例如新的分段类型、特权级别和分页机制。
+
+出于兼容性原因，所有x86 CPU在启动时都从16位实模式开始，因此引导程序的早期阶段使用的是实模式。切换到保护模式包括三个步骤：
+
+\begin{enumerate}
+    \item 设置全局描述符表
+    \item 设置CR0寄存器中的保护使能位（Protection Enable bit）\footnote{保护使能位是x86处理器中的一个特定位，位于控制寄存器 CR0 中。具体来说，它是 CR0 寄存器的第0位，通常称为 PE位（Protection Enable）。当该位被设置为1时，处理器从实模式进入保护模式，开始使用32位地址空间，并启用相关的内存保护机制和特权级别。}
+    \item 长跳转到保护模式代码段\footnote{长跳转是在x86架构中从实模式切换到保护模式时必须执行的一种跳转操作，用于重新加载代码段寄存器（CS）以确保代码的执行正确。在保护模式下，CPU使用段选择子和段描述符来确定代码段的基地址和限制等属性。简单来说，长跳转不仅改变程序的执行地址，还会更新代码段寄存器（CS）中的段选择子，以适应新的内存模型。}
+\end{enumerate}
+
+\subsubsection{全局描述符表（Global Descriptor Table）}
+
+全局描述符表（Global Descriptor Table，简称 GDT）是x86架构中特有的一种数据结构。在保护模式下，GDT用于定义内存段（Segments），并允许CPU根据这些段描述符对内存访问进行硬件级别的保护。
+
+GDT的主要作用是为CPU提供一个内存管理机制，通过它可以划分和管理内存段，从而实现更复杂的内存保护和访问控制。每个内存段的属性（如基地址、段的大小、权限等）都由GDT中的条目（Segment Descriptor）来描述，段描述符结构如\cref{fig:SegmentDescriptorStructure}所示。
+
+GDT中的每个条目称为段描述符（Segment Descriptor），它们的长度都是8字节。段描述符中包含的信息决定了该段的起始地址、段长、访问权限和其他特性。CPU通过这些信息来管理和控制程序对内存的访问。在GDT中，第一个条目通常是空的（全为0），称为空描述符（Null Descriptor）。这是为了防止CPU意外使用无效的段选择子，并作为一种安全措施。GDT中可以定义多种类型的段，包括代码段、数据段和系统段，每种段都有不同的访问权限和使用规则。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/SegmentDescriptorStructure.png}
+    \caption{段描述符结构}
+    \label{fig:SegmentDescriptorStructure}
+\end{figure}
+
+通过设置GDT，系统可以在保护模式下实现内存的分段管理和保护，使得不同的程序和任务可以在各自的内存段中独立运行，避免相互干扰，并且增强系统的安全性和稳定性。
+
+\subsubsection{磁盘读取器模块（Disk Reader Module）}
+
+磁盘读取器模块（Disk Reader Module）定义了磁盘操作，使用BIOS中断（INT 0x13）来实现从磁盘读取数据。它包括一个Disk结构体和DiskAddressPacket结构体，用于管理磁盘I/O操作和地址映射。该模块允许从指定的逻辑块地址（LBA）读取多个扇区数据到内存中指定位置。DAP的数据结构定义如\cref{lst:DiskAddressPacketDataStructure}所示，在此不再赘述。
+
+该模块定义了Disk结构体，其中包含用于指定从哪个磁盘块（LBA）开始读取以及数据应加载到内存的哪个位置（buffer）的字段。通过调用init方法，可以对这些字段进行配置，为读取操作做好准备。
+
+read\_sector方法通过配置DiskAddressPacket（DAP），然后使用BIOS中断INT 0x13来从磁盘读取一个扇区的数据。这种方法允许直接与硬件交互，无需操作系统层的支持。该方法的实现与\cref{lst:ReadSectorMethod}相同，在此不再赘述。
+
+read\_sectors方法（\cref{lst:ReadSectorsBootloaderMethod}）允许从磁盘连续读取多个扇区。它通过在循环中反复调用read\_sector方法，并逐步将数据加载到目标内存位置，从而实现连续读取。以下是这个函数的实现逻辑：
+
+\begin{enumerate}
+    \item \textbf{初始化}：方法初始化两个关键变量：sectors\_left 用于跟踪还需读取的扇区数，而 current\_target 标记了数据应当被复制到的内存起始地址。循环将持续进行，直到所有扇区都被读取完毕。
+    \item \textbf{扇区读取}：每次循环迭代，首先通过 read\_sector 方法从磁盘读取单个扇区到缓冲区。接下来，通过内部循环，将缓冲区中的数据逐字节复制到目标内存地址。这一过程涉及到寄存器操作和内联汇编，确保数据正确地从源头移动到目标位置。
+          \begin{enumerate}
+              \item \textbf{读取字节的汇编代码}：这条汇编指令负责从由 byte\_address 指向的内存位置读取单个字节的数据。byte\_address 是一个寄存器，它包含了要读取数据的具体内存地址。\texttt{mov {0}, [{1:e}]} 的指令格式表示将位于内存地址 \texttt{[{1:e}]}（由 byte\_address 指定）的数据移动到 byte 寄存器中。这里的 byte 作为输出寄存器，用于存储读取的数据，以便后续操作可以使用这个数据。
+              \item \textbf{写入字节的汇编代码}：这条汇编指令用于将先前读取并存储在 byte 寄存器中的字节数据写入到由 current\_target 寄存器指定的内存地址中。\texttt{mov [{0:e}], {1}} 的指令格式将 byte 寄存器中的数据移动到 current\_target 指定的内存位置。在这个过程中，current\_target 寄存器作为输入，提供目标地址，而 byte 寄存器则提供要写入的数据。这种方式确保了数据能够被正确地从源位置传输到目标位置，实现数据在内存中的精确控制和布局。
+          \end{enumerate}
+    \item \textbf{状态更新}：在每次完成单个扇区的读取和复制后，更新磁盘读取位置 self.lba 和剩余扇区计数 sectors\_left。
+\end{enumerate}
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub fn read_sectors(&mut self, sectors: u16, target: u32) {
+    let mut sectors_left = sectors;
+    let mut current_target = target;
+    while sectors_left > 0 {
+        self.read_sector();
+        let mut byte_address = self.buffer;
+        for _byte_index in 0..SECTOR_SIZE {
+            unsafe {
+                let mut byte: u8;
+                core::arch::asm!("mov {0}, [{1:e}]", out(reg_byte) byte, in(reg) byte_address);
+                core::arch::asm!("mov [{0:e}], {1}", in(reg) current_target, in(reg_byte) byte);
+            }
+            current_target += 1;
+            byte_address += 1;
+        }
+        self.lba += 1;
+        sectors_left -= 1;
+    }
+}
+    \end{minted}
+    \caption{\texttt{read\_sectors(sectors: u16, target: u32)}方法}\label{lst:ReadSectorsBootloaderMethod}
+\end{listing}
+
+\subsubsection{全局描述符表模块（GDT Module）}
+
+全局描述符表模块（GDT Module）包含设置全局描述符表（Global Descriptor Table, GDT）的功能，这是进入保护模式所必需的。描述符表告诉CPU如何处理内存的不同段。全局描述符表（GDT）是一个数据结构，它告诉 CPU 各个内存段的基地址、大小、权限和其他属性。在 MinmusOS 中使用的是平坦内存模型，这意味着整个 4GB 的内存空间被视为一个连续的内存区块，而不是被分割成多个独立的段。
+
+尽管 MinmusOS 使用平坦内存模型，其 GDT 实际上包含三个条目：
+
+\begin{enumerate}
+    \item \textbf{第一个条目（空描述符）}：在任何 GDT 中，第一个条目总是被设置为零。这是一个空描述符，不用于任何内存段的访问，但其存在是为了符合 Intel 处理器的要求，该处理器规定 GDT 的第一个条目必须是无效的。
+    \item \textbf{第二个条目（代码段描述符）}：这个条目定义了一个代码段，其基址设为 0x0，限制设为 0xFFFF，并且粒度位被设置为 1。粒度位为 1 表示段限制以 4KB 为单位计量，而 0xFFFF 的限制在这种设置下允许访问全部 4GB 的内存空间（因为 0xFFFF * 4KB = 4GB）。代码段的设置允许 CPU 执行存储在其中的代码。
+    \item \textbf{第三个条目（数据段描述符）}：与代码段类似，数据段也设定了基址为 0x0 和相同的限制，意味着数据段也覆盖整个 4GB 的地址空间。数据段用于定义普通内存操作的访问权限，如读写数据等。
+\end{enumerate}
+
+使用平坦内存模型的主要优点是简化了内存管理。在此模型下，所有程序都使用相同的内存地址映射，这消除了段间切换的开销并简化了程序编写。只要有适当的权限所有的内存都可以被任何执行代码访问，这在多任务操作系统中特别有用，因为它允许简单有效地进行任务切换。
+
+\cref{{lst:GlobalDescriptorTable}}通过定义和设置 GDT 条目来配置操作系统的内存段属性，涵盖了内存段的存在状态、类型、权限、大小以及其他关键属性，确保操作系统在保护模式下能够有效地管理内存访问。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub static GDT: GlobalDescriptorTable = {
+    let limit: u64 = {                    // 定义段限制大小（0xFFFF 表示所有 32 位内存）
+        let limit_low: u64 = 0xFFFF << 0; // 低位部分，直接设置为 0xFFFF
+        let limit_high: u64 = 0xF << 48;  // 高位部分，向左移 48 位
+        limit_low | limit_high            // 将低位和高位合并，形成完整的段限制大小，覆盖全部 4GB 内存
+    };
+    
+    let base: u64 = {                     // 定义基址
+        let base_low: u64 = 0x0000 << 16; // 基址低位，向左移 16 位
+        let base_high: u64 = 0x00 << 56;  // 基址高位，向左移 56 位
+        base_low | base_high              // 将低位和高位合并，形成完整的基址，从 0 开始
+    };
+
+    let access: u64 = {                   // 定义访问字节
+        let p: u64 = 0b1 << 47;           // Present 位，必须为 1，表示内存段是存在的
+        let dpl: u64 = 0b00 << 46;        // 描述符特权级别，0 是最高特权级别
+        let s: u64 = 0b1 << 44;           // 描述符类型位，标记为代码段或数据段
+        let e: u64 = 0b0 << 43;           // 可执行位，标记为非执行，用于数据段
+        let dc: u64 = 0b0 << 42;          // 方向位 / 一致位，不适用于数据段
+        let rw: u64 = 0b1 << 41;          // 可读可写位，数据段可写，代码段可读
+        let a: u64 = 0b0 << 40;           // 访问位，用于跟踪段是否被访问过
+        p | dpl | s | e | dc | rw | a     // 合并所有位，设置访问权限和段类型
+    };
+
+    let flags: u64 = {                    // 定义标志位
+        let g: u64 = 0b1 << 55;           // 粒度标志，设为 1 表示段限制以 4KB 为单位
+        let db: u64 = 0b1 << 54;          // 操作数大小，设为 1 表示 32 位操作
+        let l: u64 = 0b0 << 53;           // 长模式标志，对于非 64 位代码不设定
+        let r: u64 = 0b0 << 52;           // 保留位，未使用
+        g | db | l | r                    // 合并标志位，确定段的属性
+    };
+
+    let executable: u64 = 0b1 << 43;      // 定义可执行位，专用于代码段，使代码段为可执行
+
+    let zero = GdtEntry {                 // 定义第一个条目（空描述符）
+        entry: 0
+    };
+
+    let code = GdtEntry {                 // 定义第二个条目（代码段描述符）
+        entry: limit | base | access | flags | executable
+    };
+
+    let data = GdtEntry {                 // 定义第三个条目（数据段描述符）
+        entry: limit | base | access | flags
+    };
+
+    GlobalDescriptorTable {               // 定义全局描述符表
+        entries: [zero, code, data]
+    }
+};
+    \end{minted}
+    \caption{定义全局描述符表}\label{lst:GlobalDescriptorTable}
+\end{listing}
+
+在MinmusOS中，全局描述符表（GDT）的管理涉及三个核心的数据结构：\texttt{GdtEntry}（\cref{lst:GdtEntryDataStructure}）、\texttt{GdtDescriptor}（\cref{lst:GdtDescriptorDataStructure}）和\texttt{GlobalDescriptorTable}（\cref{lst:GlobalDescriptorTableDataStructure}）。这些结构体是操作系统与硬件之间沟通如何处理内存段的桥梁。下面详细介绍这些数据结构的作用与实现。
+
+\paragraph{\texttt{GdtEntry} 数据结构}
+
+GdtEntry 结构体表示全局描述符表中的一个条目。在 GDT 中，每个条目（或称为段描述符）定义了一个内存段的基址、限制、访问权限等属性。此结构体的字段 entry 是一个 64 位的整数，包含了段的所有描述信息，按照 x86 架构的段描述符格式编码。使用 \texttt{\#[repr(C, packed)]} 确保结构体没有任何内存对齐填充，与硬件要求的内存布局严格一致。\texttt{\#[derive(Copy, Clone, Debug)]} 在 Rust 中自动为类型实现 Copy、Clone 和 Debug trait\footnote{在 Rust 语言中，trait 是一种定义和共享接口或行为的机制，类似于其他编程语言中的接口（如 Java 的接口）或抽象基类。它允许程序员规定具有哪些方法的类型可以做什么，而不必关心这些方法是如何实现的。这样做可以确保不同的数据类型可以共用一套功能，提高代码的复用性和灵活性。}，以支持类型的无缝复制、克隆和调试格式化输出。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+#[derive(Copy, Clone, Debug)]
+#[repr(C, packed)]
+pub struct GdtEntry {
+    entry: u64,
+}
+    \end{minted}
+    \caption{\texttt{GdtEntry}数据结构定义}\label{lst:GdtEntryDataStructure}
+\end{listing}
+
+\paragraph{\texttt{GdtDescriptor} 数据结构}
+
+GdtDescriptor 结构体用于在使用 lgdt 指令加载 GDT 时，向处理器提供 GDT 的大小和内存地址。size 字段存储的是 GDT 的字节大小减去一（因为 GDT 的界限是从零开始计数的）。offset 是一个指向 GlobalDescriptorTable 的指针，表示 GDT 在内存中的位置。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub struct GdtDescriptor {
+    size: u16,
+    offset: *const GlobalDescriptorTable,
+}
+    \end{minted}
+    \caption{\texttt{GdtDescriptor}数据结构定义}\label{lst:GdtDescriptorDataStructure}
+\end{listing}
+
+\paragraph{\texttt{GlobalDescriptorTable} 数据结构}
+
+GlobalDescriptorTable 结构体包含一个固定大小的 GdtEntry 数组，即实际的 GDT，存储着所有的段描述符。提供 load 方法，用于加载 GDT 到 CPU。此方法创建一个 GdtDescriptor 实例，设置 GDT 的大小和地址，然后通过 lgdt 指令告诉 CPU 新的 GDT 的位置。使用 \texttt{\#[repr(C, packed)]} 确保结构体没有任何内存对齐填充，与硬件要求的内存布局严格一致。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+#[repr(C, packed)]
+pub struct GlobalDescriptorTable {
+    entries: [GdtEntry; GDT_ENTRIES],
+}
+
+impl GlobalDescriptorTable {
+    pub fn load(&self) {
+        let descriptor = GdtDescriptor {
+            size: (GDT_ENTRIES * size_of::<GdtEntry>() - 1) as u16,
+            offset: self,
+        };
+        unsafe {
+            core::arch::asm!("lgdt [{0:e}]", in(reg) &descriptor);
+        }
+    }
+}
+    \end{minted}
+    \caption{\texttt{GlobalDescriptorTable}数据结构定义}\label{lst:GlobalDescriptorTableDataStructure}
+\end{listing}
+
+\subsubsection{打印器模块（Printer Module）}
+
+打印器模块（Printer Module）负责输出信息到屏幕。这个模块利用BIOS中断（INT 0x10）来在屏幕上打印字符和字符串。它实现了\texttt{fmt::Write} trait，使得可以使用Rust的格式化宏如\texttt{print!}和\texttt{println!}等来输出格式化文本。
+
+\paragraph{结构体和全局变量}
+
+定义为 \texttt{pub static mut PRINTER: Printer = Printer \{\}}，这是一个全局可变的 Printer 实例。它声明为 mut 表示它是可变的。Printer 为一个空结构体，作为方法的容器，用于实现打印功能。
+
+\paragraph{实现 \texttt{fmt::Write} trait}
+
+为 Printer 实现 \texttt{fmt::Write} trait 的 write\_str 方法（如\cref{lst:WriteStrMethod}），允许使用 Rust 的格式化字符串功能。此方法接受一个字符串切片 s 并调用 prints 方法来逐字符打印。成功后返回 \texttt{fmt::Result} 类型的 \texttt{Ok(())}。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+impl fmt::Write for Printer {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        self.prints(s);
+        Ok(())
+    }
+}
+    \end{minted}
+    \caption{write\_str方法}\label{lst:WriteStrMethod}
+\end{listing}
+
+\paragraph{实现Printer}
+
+Printer提供了三种方法（\cref{lst:PrinterImplementation}），printc 方法用于在屏幕上打印一个字符，prints 方法用于在屏幕上打印一个字符串，clear 方法用于清除屏幕并将显示重置为文本模式。
+
+\begin{enumerate}
+    \item \textbf{\texttt{printc} 方法}：printc 方法用于在屏幕上打印一个字符。该方法使用内联汇编代码调用 INT 0x10 BIOS 中断来将字符显示在屏幕上。在这里，al 寄存器同样装载字符的 ASCII 值，ah 寄存器设置为 0x0e 以选择 BIOS 的“显示字符”的功能，bx 寄存器设置为 0 用于选择默认的显示页。这段代码使得 BIOS 根据 al 寄存器的值在屏幕上打印相应的字符。
+    \item \textbf{\texttt{prints} 方法}：prints 方法接收一个字符串，并遍历其中的每个字符，使用 printc 方法逐个打印到屏幕。这是通过一个简单的循环实现的，循环遍历字符串的每个字符并将其传递给 printc 方法。这种方法简洁有效地处理了字符串的逐字符显示，适用于在屏幕上输出完整的文本行或消息。
+    \item \textbf{\texttt{clear} 方法}：clear 方法用于清除屏幕并将显示重置为文本模式。这是通过调用 INT 0x10 BIOS 中断实现的，其中 ax 寄存器设置为 0x0003。这个特定的中断和 ax 值的组合告诉 BIOS 将视频模式重置到标准文本模式，并清空当前显示的内容。使用这种方法可以快速清除屏幕中的所有文本。
+\end{enumerate}
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+impl Printer {
+    pub fn printc(&self, c: char) {
+        unsafe {
+            asm!(
+            "int 0x10",
+            in("al") c as u8,
+            in("ah") 0x0eu8,
+            in("bx") 0u16,
+            );
+        }
+    }
+
+    pub fn prints(&self, s: &str) {
+        for c in s.chars() {
+            self.printc(c);
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn clear(&self) {
+        unsafe {
+            asm!("int 0x10", in("ax") 0x0003u16);
+        }
+    }
+}
+    \end{minted}
+    \caption{Printer实现}\label{lst:PrinterImplementation}
+\end{listing}
+
+\paragraph{实现宏}
+
+MinmusOS 实现了三种宏（代码见\cref{fig:MacroImplementation}）：\texttt{clear!} 宏用于清除屏幕显示，\texttt{print!} 宏提供格式化文本输出到屏幕，而 \texttt{println!} 宏在 \texttt{print!} 的基础上额外添加了自动换行功能。宏实现工具函数见\cref{lst:MacroImplementationUtils}。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\textwidth]{figures/MacroImplementation.png}
+    \caption{宏实现代码}
+    \label{fig:MacroImplementation}
+\end{figure}
+
+\begin{enumerate}
+    \item \textbf{\texttt{clear!} 宏}：\texttt{clear!} 宏提供了一个简单而直接的方式来清除屏幕的内容。它的实现包括一条单独的语句，调用内部定义的 \_clear() 函数。这个函数通过执行 Printer 类的 clear 方法来清空屏幕，后者使用 BIOS 中断 INT 0x10 来设置视频模式并清除显示。通过这个宏，开发者可以在任何地方简单地写 \texttt{clear!()}; 来清除屏幕，而不需要直接调用底层清屏函数。
+    \item \textbf{\texttt{print!} 宏}：\texttt{print!} 宏允许开发者以类似于 Rust 标准库中的 \texttt{print!} 功能的方式打印格式化文本。这个宏接收任意数量的参数，使用 \texttt{format\_args!} 宏将这些参数转换成一个 \texttt{fmt::Arguments} 类型，这是一个预格式化的文本表示。之后，它调用 \_print 函数，该函数实际上通过 write\_fmt 方法将文本输出到屏幕。这使得打印操作不仅支持简单的字符串，还支持复杂的格式化操作。
+    \item \textbf{\texttt{println!} 宏}：\texttt{println!} 宏扩展了 \texttt{print!} 宏的功能，添加了自动换行的特性。它在功能上类似于 \texttt{print!} 宏，但在每次调用结束时自动加上换行符。这个宏同样使用 \texttt{format\_args!} 来处理输入的参数并格式化它们，然后调用 \_print 来输出最终的字符串。\texttt{println!} 宏非常适合用于输出日志信息或其他需要按行处理的文本输出，简化了每次输出后手动添加换行符的需要。
+\end{enumerate}
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub fn _print(args: fmt::Arguments) {
+    use core::fmt::Write;
+    unsafe {
+        PRINTER.write_fmt(args).unwrap();
+    }
+}
+
+pub fn _clear() {
+    unsafe {
+        PRINTER.clear();
+    }
+}
+    \end{minted}
+    \caption{宏实现工具函数}\label{lst:MacroImplementationUtils}
+\end{listing}
+
+\subsubsection{主启动程序（Main Boot Program）}
+
+主启动程序（Main Boot Program）是bootloader的入口点。它负责初始化硬件设备、设置内存模式、加载内核到内存，并转交控制权到内核。此模块包含了转换到不真实模式（unreal Mode）和保护模式（Protected Mode）的逻辑，以及核心启动逻辑。
+
+错误处理函数 \texttt{fail} 和紧急停止处理函数 \texttt{panic} 的实现和\cref{sec:MainBootProgram}类似，在此不再赘述。
+
+\paragraph{常量定义}
+
+\cref{lst:ConstantDefinitions}定义了内核数据的存放位置和大小，以及内存中的目标位置。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+const KERNEL_LBA: u64 = 4096;          // 内核的逻辑块地址（LBA）
+const KERNEL_SIZE: u16 = 2048;         // 内核大小，以扇区为单位
+const KERNEL_BUFFER: u16 = 0xBE00;     // 用于复制内核的缓冲区的内存地址
+const KERNEL_TARGET: u32 = 0x00100000; // 内核被加载到内存中的目标地址
+    \end{minted}
+    \caption{常量定义}\label{lst:ConstantDefinitions}
+\end{listing}
+
+\paragraph{切换到不真实模式（Unreal Mode）}
+
+Unreal Mode 的主要功能是允许实模式下的应用程序访问更大的内存空间。虽然 CPU 仍然在实模式下运行，但通过修改段寄存器的限制，可以访问高于 1MB 的内存。这在早期的 DOS 扩展中非常有用，允许 16 位程序突破 640KB 内存限制。在现代操作系统开发中，这种模式可以在启动过程中用于设置和初始化更复杂的内存管理机制。
+
+unreal\_mode 函数（\cref{lst:UnrealModeMethod}）主要是用来设置处理器从实模式（Real Mode）切换到所谓的“Unreal Mode”，代码实现逻辑如下：
+
+\begin{enumerate}
+    \item \textbf{保存段寄存器值}：通过内联汇编命令保存当前的数据段寄存器（DS）和栈段寄存器（SS）。这是为了后面能够恢复这些寄存器的原始值，确保在修改后可以返回到原始状态。
+    \item \textbf{加载全局描述符表（GDT）}：调用加载全局描述符表，GDT 中定义了不同的内存段，包括其大小、权限等信息。加载 GDT 是为了使得后续可以设置更大的段限制。
+    \item \textbf{读取并修改 CR0 寄存器}：首先读取 CR0 寄存器的当前值，然后设置最低位（启用保护模式的标志位）。
+    \item \textbf{设置新的段寄存器值}：将段寄存器 DS 和 SS 设置为 GDT 中新的段选择子（0x10），这指向一个具有更大段限制的描述符。
+    \item \textbf{恢复 CR0 和段寄存器}：最后，将 CR0 寄存器恢复到原来的值，并将 DS 和 SS 段寄存器恢复到之前保存的值。这是为了确保系统的稳定性和正确回到原始状态。
+\end{enumerate}
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+fn unreal_mode() {
+    // 保存段寄存器值
+    let ds: u16;
+    let ss: u16;
+    unsafe {
+        asm!("mov {0:x}, ds", out(reg) ds);
+        asm!("mov {0:x}, ss", out(reg) ss);
+    }
+
+    // 加载全局描述符表（GDT）
+    GDT.load();
+
+    unsafe {
+        // 读取并修改 CR0 寄存器
+        let mut cr0: u32;
+        asm!("mov {0:e}, cr0", out(reg) cr0);
+        let cr0_protected = cr0 | 1;
+        asm!("mov cr0, {0:e}", in(reg) cr0_protected);
+
+        // 设置新的段寄存器值
+        asm!("mov {0:x}, 0x10", "mov ds, {0:x}", "mov ss, {0:x}", out(reg) _);
+
+        // 恢复 CR0 和段寄存器
+        asm!("mov cr0, {0:e}", in(reg) cr0);
+        asm!("mov ds, {0:x}", in(reg) ds);
+        asm!("mov ss, {0:x}", in(reg) ss);
+    }
+}
+    \end{minted}
+    \caption{切换到不真实模式（Unreal Mode）实现}\label{lst:UnrealModeMethod}
+\end{listing}
+
+\paragraph{切换到保护模式（Protected Mode）}
+
+protected\_mode 函数（\cref{lst:ProtectedModeMethod}）实现了在一个操作系统的启动过程中从实模式切换到保护模式。保护模式是现代操作系统中使用的模式，它支持更高级的特性，如更大的内存寻址、虚拟内存和进程隔离等。代码实现逻辑如下：
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+fn protected_mode() {
+    unsafe {
+        // 设置 CR0 寄存器以启用保护模式
+        asm!("mov eax, cr0", "or al, 1", "mov cr0, eax");
+
+        // 推送内核入口地址
+        asm!("push {0:e}", in(reg) KERNEL_TARGET);
+
+        // 长跳转以刷新管线和真正切换到保护模式
+        asm!("ljmp $0x8, $2f", "2:", options(att_syntax));
+
+        // 设置段寄存器和跳转到内核
+        asm!(
+        ".code32",
+        "mov {0:e}, 0x10",
+        "mov ds, {0:e}",
+        "mov es, {0:e}",
+        "mov ss, {0:e}",
+        "pop {1:e}",
+        "call {1:e}",
+        out(reg) _,
+        in(reg) KERNEL_TARGET,
+        );
+    }
+}
+    \end{minted}
+    \caption{切换到保护模式（Protected Mode）实现}\label{lst:ProtectedModeMethod}
+\end{listing}
+
+\begin{enumerate}
+    \item \textbf{设置 CR0 寄存器以启用保护模式}
+          \begin{enumerate}
+              \item \texttt{mov eax, cr0}：将控制寄存器 CR0 的值移动到 EAX 寄存器中。CR0 寄存器中的位控制着处理器的操作模式和状态。
+              \item \texttt{or al, 1}：将 EAX 寄存器的最低字节 AL 与 1 进行逻辑或操作，这样设置了 CR0 寄存器的最低位（PE 位，Protection Enable），用以启动保护模式。
+              \item \texttt{mov cr0, eax}：将修改后的 EAX 寄存器的值回写到 CR0 寄存器，从而实际启用保护模式。
+          \end{enumerate}
+    \item \textbf{推送内核入口地址}：这一步将内核的目标入口地址推送到栈上。这个地址稍后将用于跳转到内核执行。
+    \item \textbf{长跳转以刷新管线和真正切换到保护模式}：执行一个长跳转，这里的 \texttt{\$0x8} 是新的代码段选择子，指向 GDT 中定义的保护模式代码段。\texttt{\$2f} 是标签，跳转到下一行代码，这种跳转是必需的，因为它使 CPU 的内部管线刷新，确认从实模式完全切换到保护模式。
+    \item \textbf{设置段寄存器和跳转到内核}
+          \begin{enumerate}
+              \item \texttt{.code32}：指示开始使用 32 位代码。
+              \item \texttt{mov {0:e}, 0x10}：设置各个段寄存器指向 GDT 中的相应保护模式段。
+              \item \texttt{mov ds, {0:e}}、\texttt{mov es, {0:e}}、\texttt{mov ss, {0:e}}：分别将数据段、附加段和栈段寄存器设置为保护模式下的值。
+              \item \texttt{pop {1:e}}：从栈中弹出之前保存的内核入口地址。
+              \item \texttt{call {1:e}}：跳转到内核的入口地址开始执行内核代码。
+          \end{enumerate}
+\end{enumerate}
+
+\paragraph{主入口函数}
+
+\cref{lst:BootloaderMainFunction}定义了一个操作系统引导加载器中的主入口函数 \_start。这个函数是操作系统从实模式到保护模式转换过程中的关键部分，并且负责加载内核到内存中。下面是对该函数中各部分的解释：
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+#[no_mangle]
+#[link_section = ".start"]
+pub extern "C" fn _start() -> ! {
+    println!("[INFO] Switching to Unreal Mode...");
+    unreal_mode();
+    println!("[INFO] Loading Kernel...");
+    unsafe {
+        DISK.init(KERNEL_LBA, KERNEL_BUFFER);
+        DISK.read_sectors(KERNEL_SIZE, KERNEL_TARGET);
+    }
+    println!("[INFO] Loading Global Descriptor Table...");
+    GDT.load();
+    println!("[INFO] Switching to Protected Mode...");
+    protected_mode();
+    loop {}
+}
+    \end{minted}
+    \caption{主入口函数}\label{lst:BootloaderMainFunction}
+\end{listing}
+
+\begin{enumerate}
+    \item \textbf{\texttt{\#[no\_mangle]}}：这个属性防止 Rust 编译器改变这个函数的名称，这是确保启动代码能正确链接到这一特定入口点非常重要的一步。
+    \item \textbf{\texttt{\#[link\_section = ".start"]}}：指示编译器将这个函数放在 ELF 文件\footnote{ELF（Executable and Linkable Format）文件格式是一种广泛使用的标准文件格式，用于定义可执行文件、对象代码、共享库和核心转储。这种格式主要在Unix和Unix-like系统（如Linux、Solaris、IRIX、FreeBSD、NetBSD等）中使用，但也可在其他操作系统上实现。ELF 文件的主要用途包括：
+
+              (1) 可执行文件：包含了运行一个程序所需的所有代码和数据，以及如何将其加载到内存中的信息。
+
+              (2) 对象文件：通常是编译器输出的文件，包含了程序代码的编译结果，但尚未链接成最终的可执行文件。对象文件中包含了一系列的代码和数据段，以及重定位信息等。
+
+              (3) 共享库：共享库是可以被多个程序共同使用的代码和数据的集合。共享库的使用可以节省磁盘空间和内存，因为同一个库的单个副本可以在内存中被多个正在运行的程序共享。
+
+              (4) 核心转储文件：当程序异常终止（如崩溃）时，系统可以生成一个核心转储文件。这个文件包含了程序终止时的内存、寄存器状态、程序计数器等信息，通常用于调试和确定程序崩溃的原因。
+
+              ELF 格式提供了一种灵活且强大的方式来组织和使用不同类型的代码和数据。这种格式的统一性和广泛支持使其成为了现代操作系统在处理可执行文件和库时的首选格式。它也支持高级特性如动态链接和执行时重定位，这些特性对于现代操作系统的动态性和模块化非常重要。}的 .start 段中。这是 bootloader 约定用于存放入口点代码的段。
+    \item \textbf{切换到 Unreal Mode}：调用 unreal\_mode 函数，这个函数设置处理器以允许访问扩展的内存空间，虽然仍然在 16 位模式下运行。
+    \item \textbf{加载内核}：在 unsafe 块中，调用 \texttt{DISK.init()} 和 \texttt{DISK.read\_sectors()} 来初始化磁盘并从磁盘读取内核到内存中的指定位置。这需要使用 unsafe 语句，因为它涉及直接的硬件操作和内存操作，这些操作可能导致未定义行为。
+    \item \textbf{加载全局描述符表（GDT）}：调用 \texttt{GDT.load()} 函数来设置 CPU 的段描述符，这是进入保护模式前必需的步骤。
+    \item \textbf{切换到 Protected Mode}：调用 \texttt{protected\_mode()} 函数，该函数负责将 CPU 从 Unreal Mode 完全切换到 32 位的保护模式。此模式支持更高级的内存管理和保护功能。
+    \item \textbf{无限循环}：\texttt{loop \{\}}确保 \_start 函数在执行完成后不会返回或执行任何其他未定义的操作。
+\end{enumerate}
+
+\subsubsection{链接器脚本（Linker Script）}
