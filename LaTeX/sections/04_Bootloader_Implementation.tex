@@ -403,7 +403,7 @@ main 函数是 MinmusOS 引导程序的核心入口点，它负责初始化系�
 
 紧急停止处理（panic handler）是一种特殊的函数，用于处理运行时遇到的不可恢复的错误。它在程序遇到严重错误时被调用，如内存访问错误、预期之外的执行分支等。该函数的主要目的是防止程序继续执行可能危险或未定义的操作，它通过进入一个无限循环，使系统停留在已知的状态，便于调试和维护。在实际部署中，这种机制对于保持系统的稳定性和安全性至关重要，尤其是在裸机环境或操作系统的底层实现中。
 
-\subsubsection{链接器脚本（Linker Script）}
+\subsubsection{链接器脚本（Linker Script）}\label{LinkerScript}
 
 链接器脚本（\cref{lst:BootLinkerScript}）用于定义和控制操作系统引导程序的内存布局。脚本总体可以分为以下几个关键部分来概括其作用：
 
@@ -758,14 +758,7 @@ impl Printer {
 
 \paragraph{实现宏}
 
-MinmusOS 实现了三种宏（代码见\cref{fig:MacroImplementation}）：\texttt{clear!} 宏用于清除屏幕显示，\texttt{print!} 宏提供格式化文本输出到屏幕，而 \texttt{println!} 宏在 \texttt{print!} 的基础上额外添加了自动换行功能。宏实现工具函数见\cref{lst:MacroImplementationUtils}。
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.9\textwidth]{figures/MacroImplementation.png}
-    \caption{宏实现代码}
-    \label{fig:MacroImplementation}
-\end{figure}
+MinmusOS 实现了三种宏：\texttt{clear!} 宏用于清除屏幕显示，\texttt{print!} 宏提供格式化文本输出到屏幕，而 \texttt{println!} 宏在 \texttt{print!} 的基础上额外添加了自动换行功能。宏实现工具函数见\cref{lst:MacroImplementationUtils}。
 
 \begin{enumerate}
     \item \textbf{\texttt{clear!} 宏}：\texttt{clear!} 宏提供了一个简单而直接的方式来清除屏幕的内容。它的实现包括一条单独的语句，调用内部定义的 \_clear() 函数。这个函数通过执行 Printer 类的 clear 方法来清空屏幕，后者使用 BIOS 中断 INT 0x10 来设置视频模式并清除显示。通过这个宏，开发者可以在任何地方简单地写 \texttt{clear!()}; 来清除屏幕，而不需要直接调用底层清屏函数。
@@ -793,7 +786,7 @@ pub fn _clear() {
 
 \subsubsection{主启动程序（Main Boot Program）}
 
-主启动程序（Main Boot Program）是bootloader的入口点。它负责初始化硬件设备、设置内存模式、加载内核到内存，并转交控制权到内核。此模块包含了转换到不真实模式（unreal Mode）和保护模式（Protected Mode）的逻辑，以及核心启动逻辑。
+主启动程序是引导加载器的入口点。它负责初始化硬件设备、设置内存模式、加载内核到内存，并转交控制权到内核。此模块包含了转换到不真实模式和保护模式的逻辑，以及核心启动逻辑。
 
 错误处理函数 \texttt{fail} 和紧急停止处理函数 \texttt{panic} 的实现和\cref{sec:MainBootProgram}类似，在此不再赘述。
 
@@ -813,17 +806,7 @@ const KERNEL_TARGET: u32 = 0x00100000; // 内核被加载到内存中的目标�
 
 \paragraph{切换到不真实模式（Unreal Mode）}
 
-Unreal Mode 的主要功能是允许实模式下的应用程序访问更大的内存空间。虽然 CPU 仍然在实模式下运行，但通过修改段寄存器的限制，可以访问高于 1MB 的内存。这在早期的 DOS 扩展中非常有用，允许 16 位程序突破 640KB 内存限制。在现代操作系统开发中，这种模式可以在启动过程中用于设置和初始化更复杂的内存管理机制。
-
 unreal\_mode 函数（\cref{lst:UnrealModeMethod}）主要是用来设置处理器从实模式（Real Mode）切换到所谓的“Unreal Mode”，代码实现逻辑如下：
-
-\begin{enumerate}
-    \item \textbf{保存段寄存器值}：通过内联汇编命令保存当前的数据段寄存器（DS）和栈段寄存器（SS）。这是为了后面能够恢复这些寄存器的原始值，确保在修改后可以返回到原始状态。
-    \item \textbf{加载全局描述符表（GDT）}：调用加载全局描述符表，GDT 中定义了不同的内存段，包括其大小、权限等信息。加载 GDT 是为了使得后续可以设置更大的段限制。
-    \item \textbf{读取并修改 CR0 寄存器}：首先读取 CR0 寄存器的当前值，然后设置最低位（启用保护模式的标志位）。
-    \item \textbf{设置新的段寄存器值}：将段寄存器 DS 和 SS 设置为 GDT 中新的段选择子（0x10），这指向一个具有更大段限制的描述符。
-    \item \textbf{恢复 CR0 和段寄存器}：最后，将 CR0 寄存器恢复到原来的值，并将 DS 和 SS 段寄存器恢复到之前保存的值。这是为了确保系统的稳定性和正确回到原始状态。
-\end{enumerate}
 
 \begin{listing}[htbp]
     \begin{minted}{rust}
@@ -859,9 +842,38 @@ fn unreal_mode() {
     \caption{切换到不真实模式（Unreal Mode）实现}\label{lst:UnrealModeMethod}
 \end{listing}
 
+\begin{enumerate}
+    \item \textbf{保存段寄存器值}：通过内联汇编命令保存当前的数据段寄存器（DS）和栈段寄存器（SS）。这是为了后面能够恢复这些寄存器的原始值，确保在修改后可以返回到原始状态。
+    \item \textbf{加载全局描述符表（GDT）}：调用加载全局描述符表，GDT 中定义了不同的内存段，包括其大小、权限等信息。加载 GDT 是为了使得后续可以设置更大的段限制。
+    \item \textbf{读取并修改 CR0 寄存器}：首先读取 CR0 寄存器的当前值，然后设置最低位（启用保护模式的标志位）。
+    \item \textbf{设置新的段寄存器值}：将段寄存器 DS 和 SS 设置为 GDT 中新的段选择子（0x10），这指向一个具有更大段限制的描述符。
+    \item \textbf{恢复 CR0 和段寄存器}：最后，将 CR0 寄存器恢复到原来的值，并将 DS 和 SS 段寄存器恢复到之前保存的值。这是为了确保系统的稳定性和正确回到原始状态。
+\end{enumerate}
+
+Unreal Mode 的主要功能是允许实模式下的应用程序访问更大的内存空间。虽然 CPU 仍然在实模式下运行，但通过修改段寄存器的限制，可以访问高于 1MB 的内存。这在早期的 DOS 扩展中非常有用，允许 16 位程序突破 640KB 内存限制。在现代操作系统开发中，这种模式可以在启动过程中用于设置和初始化更复杂的内存管理机制。
+
 \paragraph{切换到保护模式（Protected Mode）}
 
 protected\_mode 函数（\cref{lst:ProtectedModeMethod}）实现了在一个操作系统的启动过程中从实模式切换到保护模式。保护模式是现代操作系统中使用的模式，它支持更高级的特性，如更大的内存寻址、虚拟内存和进程隔离等。代码实现逻辑如下：
+
+\begin{enumerate}
+    \item \textbf{设置 CR0 寄存器以启用保护模式}
+          \begin{enumerate}
+              \item \texttt{mov eax, cr0}：将控制寄存器 CR0 的值移动到 EAX 寄存器中。CR0 寄存器中的位控制着处理器的操作模式和状态。
+              \item \texttt{or al, 1}：将 EAX 寄存器的最低字节 AL 与 1 进行逻辑或操作，这样设置了 CR0 寄存器的最低位（PE 位，Protection Enable），用以启动保护模式。
+              \item \texttt{mov cr0, eax}：将修改后的 EAX 寄存器的值回写到 CR0 寄存器，从而实际启用保护模式。
+          \end{enumerate}
+    \item \textbf{推送内核入口地址}：这一步将内核的目标入口地址推送到栈上。这个地址稍后将用于跳转到内核执行。
+    \item \textbf{长跳转以刷新管线和真正切换到保护模式}：执行一个长跳转，这里的 \texttt{\$0x8} 是新的代码段选择子，指向 GDT 中定义的保护模式代码段。\texttt{\$2f} 是标签，跳转到下一行代码，这种跳转是必需的，因为它使 CPU 的内部管线刷新，确认从实模式完全切换到保护模式。
+    \item \textbf{设置段寄存器和跳转到内核}
+          \begin{enumerate}
+              \item \texttt{.code32}：指示开始使用 32 位代码。
+              \item \texttt{mov {0:e}, 0x10}：设置各个段寄存器指向 GDT 中的相应保护模式段。
+              \item \texttt{mov ds, {0:e}}、\texttt{mov es, {0:e}}、\texttt{mov ss, {0:e}}：分别将数据段、附加段和栈段寄存器设置为保护模式下的值。
+              \item \texttt{pop {1:e}}：从栈中弹出之前保存的内核入口地址。
+              \item \texttt{call {1:e}}：跳转到内核的入口地址开始执行内核代码。
+          \end{enumerate}
+\end{enumerate}
 
 \begin{listing}[htbp]
     \begin{minted}{rust}
@@ -894,25 +906,6 @@ fn protected_mode() {
     \caption{切换到保护模式（Protected Mode）实现}\label{lst:ProtectedModeMethod}
 \end{listing}
 
-\begin{enumerate}
-    \item \textbf{设置 CR0 寄存器以启用保护模式}
-          \begin{enumerate}
-              \item \texttt{mov eax, cr0}：将控制寄存器 CR0 的值移动到 EAX 寄存器中。CR0 寄存器中的位控制着处理器的操作模式和状态。
-              \item \texttt{or al, 1}：将 EAX 寄存器的最低字节 AL 与 1 进行逻辑或操作，这样设置了 CR0 寄存器的最低位（PE 位，Protection Enable），用以启动保护模式。
-              \item \texttt{mov cr0, eax}：将修改后的 EAX 寄存器的值回写到 CR0 寄存器，从而实际启用保护模式。
-          \end{enumerate}
-    \item \textbf{推送内核入口地址}：这一步将内核的目标入口地址推送到栈上。这个地址稍后将用于跳转到内核执行。
-    \item \textbf{长跳转以刷新管线和真正切换到保护模式}：执行一个长跳转，这里的 \texttt{\$0x8} 是新的代码段选择子，指向 GDT 中定义的保护模式代码段。\texttt{\$2f} 是标签，跳转到下一行代码，这种跳转是必需的，因为它使 CPU 的内部管线刷新，确认从实模式完全切换到保护模式。
-    \item \textbf{设置段寄存器和跳转到内核}
-          \begin{enumerate}
-              \item \texttt{.code32}：指示开始使用 32 位代码。
-              \item \texttt{mov {0:e}, 0x10}：设置各个段寄存器指向 GDT 中的相应保护模式段。
-              \item \texttt{mov ds, {0:e}}、\texttt{mov es, {0:e}}、\texttt{mov ss, {0:e}}：分别将数据段、附加段和栈段寄存器设置为保护模式下的值。
-              \item \texttt{pop {1:e}}：从栈中弹出之前保存的内核入口地址。
-              \item \texttt{call {1:e}}：跳转到内核的入口地址开始执行内核代码。
-          \end{enumerate}
-\end{enumerate}
-
 \paragraph{主入口函数}
 
 \cref{lst:BootloaderMainFunction}定义了一个操作系统引导加载器中的主入口函数 \_start。这个函数是操作系统从实模式到保护模式转换过程中的关键部分，并且负责加载内核到内存中。下面是对该函数中各部分的解释：
@@ -941,17 +934,7 @@ pub extern "C" fn _start() -> ! {
 
 \begin{enumerate}
     \item \textbf{\texttt{\#[no\_mangle]}}：这个属性防止 Rust 编译器改变这个函数的名称，这是确保启动代码能正确链接到这一特定入口点非常重要的一步。
-    \item \textbf{\texttt{\#[link\_section = ".start"]}}：指示编译器将这个函数放在 ELF 文件\footnote{ELF（Executable and Linkable Format）文件格式是一种广泛使用的标准文件格式，用于定义可执行文件、对象代码、共享库和核心转储。这种格式主要在Unix和Unix-like系统（如Linux、Solaris、IRIX、FreeBSD、NetBSD等）中使用，但也可在其他操作系统上实现。ELF 文件的主要用途包括：
-
-              (1) 可执行文件：包含了运行一个程序所需的所有代码和数据，以及如何将其加载到内存中的信息。
-
-              (2) 对象文件：通常是编译器输出的文件，包含了程序代码的编译结果，但尚未链接成最终的可执行文件。对象文件中包含了一系列的代码和数据段，以及重定位信息等。
-
-              (3) 共享库：共享库是可以被多个程序共同使用的代码和数据的集合。共享库的使用可以节省磁盘空间和内存，因为同一个库的单个副本可以在内存中被多个正在运行的程序共享。
-
-              (4) 核心转储文件：当程序异常终止（如崩溃）时，系统可以生成一个核心转储文件。这个文件包含了程序终止时的内存、寄存器状态、程序计数器等信息，通常用于调试和确定程序崩溃的原因。
-
-              ELF 格式提供了一种灵活且强大的方式来组织和使用不同类型的代码和数据。这种格式的统一性和广泛支持使其成为了现代操作系统在处理可执行文件和库时的首选格式。它也支持高级特性如动态链接和执行时重定位，这些特性对于现代操作系统的动态性和模块化非常重要。}的 .start 段中。这是 bootloader 约定用于存放入口点代码的段。
+    \item \textbf{\texttt{\#[link\_section = ".start"]}}：指示编译器将这个函数放在 ELF 文件\footnote{ELF（Executable and Linkable Format）文件格式是一种广泛使用的标准文件格式，用于定义可执行文件、对象代码、共享库和核心转储。这种格式主要在Unix和Unix-like系统（如Linux、Solaris、IRIX、FreeBSD、NetBSD等）中使用，但也可在其他操作系统上实现。ELF 文件的主要用途包括可执行文件、对象文件、共享库、核心转储文件等。ELF 格式提供了一种灵活且强大的方式来组织和使用不同类型的代码和数据。这种格式的统一性和广泛支持使其成为了现代操作系统在处理可执行文件和库时的首选格式。它也支持高级特性如动态链接和执行时重定位，这些特性对于现代操作系统的动态性和模块化非常重要。}的 .start 段中。这是 bootloader 约定用于存放入口点代码的段。
     \item \textbf{切换到 Unreal Mode}：调用 unreal\_mode 函数，这个函数设置处理器以允许访问扩展的内存空间，虽然仍然在 16 位模式下运行。
     \item \textbf{加载内核}：在 unsafe 块中，调用 \texttt{DISK.init()} 和 \texttt{DISK.read\_sectors()} 来初始化磁盘并从磁盘读取内核到内存中的指定位置。这需要使用 unsafe 语句，因为它涉及直接的硬件操作和内存操作，这些操作可能导致未定义行为。
     \item \textbf{加载全局描述符表（GDT）}：调用 \texttt{GDT.load()} 函数来设置 CPU 的段描述符，这是进入保护模式前必需的步骤。
@@ -960,3 +943,73 @@ pub extern "C" fn _start() -> ! {
 \end{enumerate}
 
 \subsubsection{链接器脚本（Linker Script）}
+
+这个链接器脚本（\cref{lst:BootloaderLinkerScript}）专为操作系统的引导程序设计，目的是定义和控制引导程序在内存中的布局。链接器脚本在系统启动过程中起到至关重要的作用，确保引导程序正确地加载和执行。脚本总体可以分为以下几个关键部分来概括其作用：
+
+\begin{enumerate}
+    \item \textbf{程序入口点}：指定 \_start 函数为程序的入口点，这是系统开始执行引导程序的地方。
+    \item \textbf{段的配置}：设置引导程序的加载地址。0x7C00 是 BIOS 传统上将引导扇区加载到内存的位置，加上 512 字节（一个扇区的大小）是为了紧接引导扇区之后开始。
+    \item \textbf{各种内存段的定义}：.start 包含引导程序的实际入口代码，.text 包含程序的机器代码，.bss 用于存储程序中未初始化的数据，.rodata 包含只读数据，.data 包含已初始化的全局变量和静态变量，.eh\_frame 和 .eh\_frame\_hdr 包含用于支持运行时错误处理的异常处理信息。
+    \item \textbf{内存布局的结束配置}：将位置指针设置为引导加载器起始位置加上 32KB 减 2 字节，确保引导加载器的大小正好为 32KB。在内存中设置一个结束标记（使用 \texttt{SHORT(0XDEAD)}），用于标识引导加载器的结束。
+\end{enumerate}
+
+\begin{listing}[htbp]
+    \begin{minted}{text}
+/* 配置程序入口点 */
+ENTRY(_start)
+
+/* 配置段的顺序和位置 */
+SECTIONS {
+    /* 配置引导加载器的开始地址为 0x7C00 加 512B（即一个扇区后），这是 BIOS 启动扇区的传统位置 */
+    . = 0X7C00 + 512;
+    _bootloader_start = .;
+
+    /* 定义启动段，包含启动代码的实际入口点 */
+    .start : {
+        *(.start)
+    }
+
+    /* 定义代码段，包含程序的机器代码 */
+    .text : {
+        *(.text .text.*)
+    }
+
+    /* 定义 BSS 段，包含程序中未初始化的数据 */
+    .bss : {
+        *(.bss .bss.*)
+    }
+
+    /* 定义只读数据段，包含常量等不应被程序修改的数据 */
+    .rodata : {
+        *(.rodata .rodata.*)
+    }
+
+    /* 定义数据段，包含已初始化的全局变量和静态变量 */
+    .data : {
+        *(.data .data.*)
+    }
+
+    /* 配置异常处理信息，用于支持运行时错误处理 */
+    .eh_frame : {
+        *(.eh_frame .eh_frame.*)
+    }
+    .eh_frame_hdr : {
+        *(.eh_frame_hdr .eh_frame_hdr.*)
+    }
+
+    /* 将位置指针设置为引导加载器起始位置加上 32KB 减 2B，确保引导加载器大小为 32KB */
+    . = _bootloader_start + 0X8000 - 2;
+
+    /* 在内存中设置一个结束标记，用于标识引导加载器的结束 */
+    .end_marker :
+    {
+        SHORT(0XDEAD)
+    }
+}
+    \end{minted}
+    \caption{bootloader/linker.ld}\label{lst:BootloaderLinkerScript}
+\end{listing}
+
+在 Rust 项目中，build.rs 文件充当构建脚本的角色，主要用于在项目编译前执行自定义的构建任务。构建脚本的实现与\cref{LinkerScript}相同，在此不再赘述。
+
+通过精确地控制各个内存段的位置和大小，这个脚本确保引导程序能够被正确地加载到预期的内存地址，并且所有的代码和数据都按预期方式进行组织。通过配置 .eh\_frame 和 .eh\_frame\_hdr，增强了程序的健壮性，使得在出现运行时错误时能够进行有效的异常处理。
