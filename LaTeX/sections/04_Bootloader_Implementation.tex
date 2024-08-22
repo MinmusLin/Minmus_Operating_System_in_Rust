@@ -1013,3 +1013,12 @@ SECTIONS {
 在 Rust 项目中，build.rs 文件充当构建脚本的角色，主要用于在项目编译前执行自定义的构建任务。构建脚本的实现与\cref{LinkerScript}相同，在此不再赘述。
 
 通过精确地控制各个内存段的位置和大小，这个脚本确保引导程序能够被正确地加载到预期的内存地址，并且所有的代码和数据都按预期方式进行组织。通过配置 .eh\_frame 和 .eh\_frame\_hdr，增强了程序的健壮性，使得在出现运行时错误时能够进行有效的异常处理。
+
+至此我们实现了从实模式到保护模式的切换，并完成了内核的加载（\cref{fig:BootloaderPresentation}）。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/BootloaderPresentation.png}
+    \caption{引导加载器演示}
+    \label{fig:BootloaderPresentation}
+\end{figure}
