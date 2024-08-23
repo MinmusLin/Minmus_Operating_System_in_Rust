@@ -405,8 +405,8 @@ impl Pic {
     }
 
     // 检查给定的中断号是否由当前的 PIC 处理，判断依据是中断号是否位于该 PIC 的控制范围内
-    pub fn handles_interrupt(&self, interupt: u8) -> bool {
-        self.offset <= interupt && interupt < self.offset + IRQ_COUNT
+    pub fn handles_interrupt(&self, interrupt: u8) -> bool {
+        self.offset <= interrupt && interrupt < self.offset + IRQ_COUNT
     }
 }
     \end{minted}
@@ -496,12 +496,220 @@ pub fn wait() {
 
 \subsubsection{键盘驱动程序（Keyboard Driver）}
 
+键盘驱动程序是计算机操作系统中的一个重要组件，负责处理和解释来自物理键盘的输入信号。无论是传统的PS/2键盘还是现代的USB键盘，驱动程序都扮演着至关重要的角色。以下是键盘驱动程序的几个主要功能和特点：
 
+\begin{enumerate}
+    \item \textbf{信号解析}：键盘驱动程序首先需要从键盘控制器读取扫描码，这些扫描码是键盘在按键操作时生成的。这些扫描码包含关于哪个键被按下或释放的信息。
+    \item \textbf{中断处理}：当按键操作发生时，键盘会向计算机发送一个中断信号，这个信号会触发操作系统中断处理程序。键盘驱动程序必须能够响应这些中断，并从键盘控制器中读取相应的扫描码。
+    \item \textbf{数据转换}：驱动程序读取到扫描码后，需要将其解析并转换成具体的键盘事件，如按键按下或释放。这个过程涉及到将扫描码映射到特定的键盘布局和语言设置。
+    \item \textbf{事件传递}：解析完成后，驱动程序会生成一个或多个高级的输入事件，这些事件将被操作系统接收并传递给相应的应用程序处理。
+    \item \textbf{兼容性和模拟}：对于使用PS/2接口的旧键盘，现代主板通常通过模拟方式支持，将这些设备表现为PS/2设备，以便支持旧软件。这种模拟也需要键盘驱动程序处理特定的兼容性问题。
+\end{enumerate}
 
+MinmusOS的PS/2键盘驱动程序负责处理来自PS/2键盘的输入，将扫描码（scancode）转换为ASCII字符，并相应地更新系统状态。该驱动程序利用中断请求（IRQ1，即键盘中断）来响应键盘事件，确保即使在多任务环境下也能及时处理键盘输入。
 
+Keyboard结构体是键盘状态的主要表示形式，包含了各种键盘修饰键的状态（如Shift、Ctrl、Alt和Caps Lock）。这些状态用布尔值表示，分别对应左右Shift键、左右Ctrl键、左右Alt键及Caps Lock键的开关状态。该结构体通过\cref{lst:KeyboardDataStructure}定义。
 
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub struct Keyboard {
+    left_shift: bool,
+    right_shift: bool,
+    left_ctrl: bool,
+    right_ctrl: bool,
+    left_alt: bool,
+    right_alt: bool,
+    caps_lock: bool,
+}
+    \end{minted}
+    \caption{\texttt{Keyboard}数据结构}\label{lst:KeyboardDataStructure}
+\end{listing}
 
+KEYBOARD是Keyboard结构体的一个静态实例，系统中的任何部分都可以访问此实例来查询当前的键盘状态。该静态实例通过\cref{lst:KeyboardStaticInstance}定义。
 
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub static mut KEYBOARD: Keyboard = Keyboard {
+    left_shift: false,
+    right_shift: false,
+    left_ctrl: false,
+    right_ctrl: false,
+    left_alt: false,
+    right_alt: false,
+    caps_lock: false,
+};
+    \end{minted}
+    \caption{KEYBOARD静态实例}\label{lst:KeyboardStaticInstance}
+\end{listing}
+
+KeyMap 结构体和 KEYMAP 静态数组是键盘驱动中用于映射扫描码到字符的核心部分。这些定义使得驱动程序能够将从键盘硬件接收到的扫描码转换为相应的字符输出，包括考虑到是否按下了Shift键或Caps Lock键的情况。KeyMap 结构体定义了键盘上每个键的扫描码及其对应的常规字符和Shift状态下的字符，该结构体通过\cref{lst:KeyMapDataStructure}定义。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+#[derive(Copy, Clone, Debug)]
+struct KeyMap {
+    scancode: u8,
+    normal: char,
+    shifted: char,
+}
+    \end{minted}
+    \caption{\texttt{KeyMap}数据结构}\label{lst:KeyMapDataStructure}
+\end{listing}
+
+\cref{lst:KeyMapStaticArray}定义了一个静态数组，包含了所有主要键盘按键的KeyMap条目。这个数组作为键盘驱动的查找表，用于在接收到键盘扫描码时快速确定对应的字符输出。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+static KEYMAP: &[KeyMap] = &[
+    KeyMap { scancode: 0x02, normal: '1', shifted: '!' },
+    KeyMap { scancode: 0x03, normal: '2', shifted: '@' },
+    ...
+    KeyMap { scancode: 0x10, normal: 'q', shifted: 'Q' },
+    KeyMap { scancode: 0x11, normal: 'w', shifted: 'W' },
+    ...
+    KeyMap { scancode: 0x1A, normal: '[', shifted: '{' },
+    KeyMap { scancode: 0x1B, normal: ']', shifted: '}' },
+    ...
+];
+    \end{minted}
+    \caption{KEYMAP静态数组}\label{lst:KeyMapStaticArray}
+\end{listing}
+
+keyboard 函数（\cref{lst:KeyboardFunction}）在 MinmusOS 中充当键盘中断的处理入口点，专门用于在发生键盘相关硬件中断时被调用。它是一个裸函数（naked function），这意味着它不会自动产生入口和出口代码，如保存寄存器或建立栈帧，从而为编写极具控制性的低级硬件交互代码提供了可能。该函数首先通过一系列 push 指令保存关键状态或数据，然后调用 keyboard\_handler 来处理具体的键盘输入，如字符解析和状态更新。在处理完毕后，通过调整栈指针（esp）来清理栈，并使用 iretd 指令完成从中断返回，这样CPU可以恢复到中断发生前的状态并继续执行其他任务。这种方法确保了键盘输入的及时和准确处理，对于操作系统的响应性和稳定性至关重要。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+#[naked]
+pub extern "C" fn keyboard() {
+    unsafe {
+        asm!(
+        "push 0x6D6E6276",
+        "push 0x63787A6C",
+        "push 0x6B6A6867",
+        "push 0x66647361",
+        "push 0x706F6975",
+        "push 0x79747265",
+        "push 0x77713039",
+        "push 0x38373635",
+        "push 0x34333231",
+        "call keyboard_handler",
+        "add esp, 36",
+        "iretd",
+        options(noreturn),
+        );
+    }
+}
+    \end{minted}
+    \caption{keyboard函数}\label{lst:KeyboardFunction}
+\end{listing}
+
+cancode\_to\_char 函数（\cref{lst:CancodeToCharFunction}）是 MinmusOS 键盘驱动程序中用于将键盘扫描码转换为对应字符的关键函数。它首先检查是否有任何Shift键被按下，并查询Caps Lock的状态，这些都是通过访问全局 KEYBOARD 结构体得到的。此函数遍历 KEYMAP 数组，寻找与给定扫描码匹配的条目。一旦找到匹配，函数根据是否按下Shift键选择对应的字符（正常或Shift状态下的字符）。如果所选字符是字母，并且考虑到Caps Lock状态与Shift键的组合，函数可能会将字符转换为大写或小写。如果没有找到匹配的扫描码，函数返回空字符，表示无有效输入。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+fn scancode_to_char(scancode: u8) -> char {
+    let shift_pressed: bool = unsafe { KEYBOARD.left_shift || KEYBOARD.right_shift };
+    let caps_lock: bool = unsafe { KEYBOARD.caps_lock };
+    for key in KEYMAP.iter() {
+        if key.scancode == scancode {
+            let mut character = if shift_pressed {
+                key.shifted
+            } else {
+                key.normal
+            };
+            if character.is_ascii_alphabetic() {
+                if caps_lock && !shift_pressed || !caps_lock && shift_pressed {
+                    character = character.to_ascii_uppercase();
+                } else {
+                    character = character.to_ascii_lowercase();
+                }
+            }
+            return character;
+        }
+    }
+    '\0'
+}
+    \end{minted}
+    \caption{cancode\_to\_char 函数}\label{lst:CancodeToCharFunction}
+\end{listing}
+
+keyboard\_handler 函数（\cref{lst:KeyboardHandlerFunction}）是 MinmusOS 键盘驱动中负责处理键盘中断的核心函数。这个函数直接从键盘硬件读取扫描码，并根据这些扫描码更新系统内的键盘状态或者执行对应的动作。以下是函数实现逻辑的详细介绍：
+
+\begin{enumerate}
+    \item \textbf{读取扫描码}：使用 asm! 宏直接从键盘数据端口（0x60端口）读取一个字节的扫描码到 scancode 变量中。这是一个底层的硬件交互操作，直接与键盘输入硬件通信。
+    \item \textbf{处理特殊前缀}：检查读取的扫描码是否为 0xE0，这是多字节扫描码的开始，常见于特殊功能键（如右Ctrl、右Alt等）。如果是，再次从端口读取扫描码，并将 E0\_PREFIX 标志设置为 true，以指示后续的扫描码处理应按照特殊键处理。
+    \item \textbf{结束中断}：调用 \texttt{PICS.end\_interrupt(KEYBOARD\_INT)} 来通知可编程中断控制器（PIC），键盘中断已经被处理完毕，可以继续接收其他中断。
+    \item \textbf{处理键状态}：使用两个不同的 match 语句来根据是否有 E0\_PREFIX 标志分别处理扫描码。
+    \item \textbf{字符输出}：使用 scancode\_to\_char 函数将扫描码转换为相应的字符。如果结果字符不是空字符，则添加到 shell 中，实现字符的输出。
+\end{enumerate}
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+#[allow(improper_ctypes_definitions)]
+#[no_mangle]
+pub extern "C" fn keyboard_handler() {
+    static mut E0_PREFIX: bool = false;
+    let mut scancode: u8;
+    unsafe {
+        asm!("in al, dx", out("al") scancode, in("dx") 0x60u16);
+        if scancode == 0xE0 {
+            asm!("in al, dx", out("al") scancode, in("dx") 0x60u16);
+            E0_PREFIX = true;
+        }
+        // lib::print!("[0x{:X}]", scancode);
+        PICS.end_interrupt(KEYBOARD_INT);
+        if E0_PREFIX {
+            match scancode {
+                0x1D => KEYBOARD.right_ctrl = true,
+                0x9D => KEYBOARD.right_ctrl = false,
+                0x38 => KEYBOARD.right_alt = true,
+                0xB8 => KEYBOARD.right_alt = false,
+                _ => {}
+            }
+            E0_PREFIX = false;
+        } else {
+            match scancode {
+                0x2A => KEYBOARD.left_shift = true,
+                0xAA => KEYBOARD.left_shift = false,
+                0x36 => KEYBOARD.right_shift = true,
+                0xB6 => KEYBOARD.right_shift = false,
+                0x1D => KEYBOARD.left_ctrl = true,
+                0x9D => KEYBOARD.left_ctrl = false,
+                0x38 => KEYBOARD.left_alt = true,
+                0xB8 => KEYBOARD.left_alt = false,
+                0x3A => {
+                    KEYBOARD.caps_lock = !KEYBOARD.caps_lock;
+                    return;
+                }
+                0x0E => {
+                    SHELL.backspace();
+                    return;
+                }
+                0x1C => {
+                    SHELL.enter();
+                    return;
+                }
+                _ => {}
+            }
+        }
+        let key: char = scancode_to_char(scancode);
+        if key != '\0' {
+            SHELL.add(key);
+        }
+    }
+}
+    \end{minted}
+    \caption{keyboard\_handler 函数}\label{lst:KeyboardHandlerFunction}
+\end{listing}
+
+这个键盘驱动支持显示数字0-9、字母a-z、A-Z、空格以及32个常用的ASCII特殊字符，并能够处理左右Shift、左右Ctrl、左右Alt以及Caps Lock键的功能。例如，按下和释放Shift键会切换对应的布尔状态（如left\_shift或right\_shift），从而控制字符的大小写转换和特殊符号的输入。Ctrl和Alt键的状态同样通过布尔变量管理，支持执行快捷操作和特殊功能。Caps Lock键则通过切换其布尔状态来控制键盘输入的大小写模式，提供灵活的文本输入方式。键盘驱动演示如\cref{fig:KeyboardDriverPresentation}。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/KeyboardDriverPresentation.png}
+    \caption{键盘驱动演示}
+    \label{fig:KeyboardDriverPresentation}
+\end{figure}
 
 \subsubsection{高级技术附件磁盘驱动程序（Advanced Technology Attachment Disk Driver）}
 
