@@ -4,7 +4,7 @@
 
 MinmusOS 采用的是宏内核模式，因此其所有服务和设备驱动程序都在单一地址空间内运行，并处于特权模式下。这种模式提高了效率并减少了代码复杂性，但缺点是其中任何一个组件的错误都可能导致整个系统崩溃。
 
-在本节（\cref{sec:KernelFunctionalityImplementation}）中，笔者将详细探讨 MinmusOS 内核各项功能的实现，包括中断管理、驱动程序、多任务处理、系统调用、命令行解释器、内存管理以及文件系统。
+在本节（\cref{sec:KernelFunctionalityImplementation}）中，笔者将详细探讨 MinmusOS 内核各项功能的实现，包括中断管理、驱动程序、多任务处理、系统调用、内存管理、文件系统以及命令行解释器等。
 
 \subsection{中断（Interrupts）}
 
@@ -1250,6 +1250,8 @@ pub static mut TASK_MANAGER: TaskManager = TaskManager {
 
 \subsection{系统调用（System Calls）}
 
+\subsubsection{系统调用概述}
+
 在MinmusOS中，kernel/src/syscalls/handler.rs文件（\cref{lst:HandlerRust}）负责处理系统调用。系统调用是用户空间中的程序请求内核服务的一种方式。通过这个接口，内核可以建立一个安全模型，对某些进程可以执行的操作类型和范围进行限制，它是内核功能对用户空间的一种暴露。
 
 在MinmusOS中，系统调用通过\texttt{syscall()}函数使用软件中断（中断向量0x80）来触发。这种机制类似于Linux在x86架构上使用的方法。
@@ -1260,6 +1262,8 @@ pub static mut TASK_MANAGER: TaskManager = TaskManager {
     \item \textbf{系统调用0}：打印由EBX寄存器指向的地址开始的字符串，长度由ECX寄存器指定。
     \item \textbf{系统调用1}：从任务列表中移除当前运行的任务。
 \end{enumerate}
+
+\subsubsection{系统调用实现}
 
 以下是处理系统调用的关键步骤：
 
@@ -1316,10 +1320,859 @@ pub extern "C" fn syscall_handler(ecx: u32, ebx: u32, eax: u32) {
 
 通过这种方式，MinmusOS能够提供一种有效且安全的机制，允许用户程序执行核心级的操作，如IO操作和任务管理。
 
-\subsection{VGA模式（Video Graphics Array Mode）}
+\subsection{VGA文本模式（VGA Text Mode）}
 
-\subsection{命令行解释器（Shell）}
+VGA文本模式是VGA标准的一种模式，专门用于显示标准的文本字符而非图形。这种模式通常用于计算机启动过程中和一些基本的用户界面，因为它可以提供快速且低消耗的文本显示功能。
+
+在VGA文本模式中，屏幕通常被分成一个个字符单元，每个字符单元可以显示一个字符。常见的配置是80列和25行，即屏幕上可以同时显示2000个字符。每个字符单元由一个字符码和一个属性码组成，字符码用来确定显示哪个字符，属性码定义了字符的前景色和背景色以及是否闪烁等属性。
+
+VGA文本模式支持ASCII字符集的扩展，包括英文字符和各种符号，以及一些特殊的图形符号，这使得它能够用来绘制简单的图形和边框。由于其简洁和高效的特性，VGA文本模式在早期的个人计算机和一些嵌入式系统中得到了广泛使用。
+
+\subsubsection{标准色彩定义}
+
+在VGA文本模式中，标准色彩定义为前景色和背景色的组合，从而在文本显示中实现不同的视觉效果。如\cref{lst:StandardColorDefinitions}所示，我们定义了一系列的颜色常量，包括基本的黑色、蓝色、绿色、红色等，以及它们的“亮”版本，如亮黑色、亮蓝色等。这些颜色常量使用一个无符号8位整数（u8）表示，其中每个颜色对应一个唯一的数值，例如黑色为0，蓝色为1等。
+
+这些颜色可以在VGA文本模式下用于设置字符的前景色和背景色。在设置字符属性时，前景色和背景色的值可以通过位操作组合在一起，其中背景色占高四位，前景色占低四位。这种色彩配置方法允许快速和简单地调整文本的视觉样式，是文本模式下高效显示的关键。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub const COLOR_BLACK: u8 = 0x0;
+pub const COLOR_BLUE: u8 = 0x1;
+pub const COLOR_GREEN: u8 = 0x2;
+pub const COLOR_CYAN: u8 = 0x3;
+pub const COLOR_RED: u8 = 0x4;
+pub const COLOR_MAGENTA: u8 = 0x5;
+pub const COLOR_YELLOW: u8 = 0x6;
+pub const COLOR_WHITE: u8 = 0x7;
+pub const COLOR_LIGHT_BLACK: u8 = 0x8;
+pub const COLOR_LIGHT_BLUE: u8 = 0x9;
+pub const COLOR_LIGHT_GREEN: u8 = 0xA;
+pub const COLOR_LIGHT_CYAN: u8 = 0xB;
+pub const COLOR_LIGHT_RED: u8 = 0xC;
+pub const COLOR_LIGHT_MAGENTA: u8 = 0xD;
+pub const COLOR_LIGHT_YELLOW: u8 = 0xE;
+pub const COLOR_LIGHT_WHITE: u8 = 0xF;
+    \end{minted}
+    \caption{标准色彩定义}\label{lst:StandardColorDefinitions}
+\end{listing}
+
+\subsubsection{printc方法}
+
+printc方法（\cref{lst:PrintcMethod}）是VGA文本模式中用于在屏幕上打印单个字符的函数。该方法接受一个字符参数，并根据当前光标位置将字符显示在屏幕上。在VGA文本模式中，屏幕被视为一个由多个字符单元组成的数组，每个单元可以显示一个字符和相应的颜色属性。
+
+该方法首先检查传入的字符是否为换行符。如果是，它将调用new\_line方法来移动到下一行。如果不是换行符，方法将计算当前字符应该放置的内存位置。这个位置由VGA\_START（VGA内存的起始地址）加上基于当前行（self.y）和列（self.x）的偏移量计算得出。每个字符单元占用两个字节：第一个字节用于存储字符的ASCII码，第二个字节用于存储该字符的颜色属性（由前景色和背景色组成）。
+
+方法中还包含了对屏幕边界的检查。如果字符位置达到屏幕的最右侧或最下方，它会通过调用scroll方法来滚动屏幕内容，为新字符腾出空间。每打印一个字符后，方法会通过调用set\_cursor\_position更新光标位置，确保下一个字符能够被正确打印。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub fn printc(&mut self, c: char) {
+    if c == '\n' {
+        self.new_line();
+        return;
+    }
+    let target: *mut u8 = (VGA_START + ((self.y * VGA_WIDTH + self.x) * 2) as u32) as *mut u8;
+    unsafe {
+        if self.y >= VGA_HEIGHT - 1 && self.x >= VGA_WIDTH - 1 {
+            *target = c as u8;
+            *target.byte_add(1) = self.bg_color << 4 | self.fg_color;
+            self.scroll();
+            self.x = 0;
+        } else {
+            *target = c as u8;
+            *target.byte_add(1) = self.bg_color << 4 | self.fg_color;
+            self.x += 1;
+            if self.x >= VGA_WIDTH {
+                self.x = 0;
+                self.y += 1;
+            }
+        }
+    }
+    self.set_cursor_position();
+}
+    \end{minted}
+    \caption{printc方法}\label{lst:PrintcMethod}
+\end{listing}
+
+\subsubsection{prints方法}
+
+prints方法（\cref{lst:PrintsMethod}）用于在VGA文本模式中打印一个字符串。此方法接受一个字符串参数，并逐字符调用printc方法将字符串的每个字符输出到屏幕上。
+
+首先，此方法通过调用get\_cursor\_position获取当前光标的位置，确保字符串从正确的位置开始打印。光标位置以(u16, u16)格式返回，表示当前光标的行(y)和列(x)。获取到这个位置后，方法将此位置赋值给内部的x和y属性，从而准备字符打印的起始点。
+
+接着，方法遍历字符串中的每一个字符，并逐个调用printc方法进行打印。由于printc方法已经内置了处理换行和屏幕滚动的逻辑，prints方法可以无缝地继续打印字符串，即使内容跨越多行。
+
+在字符串的所有字符都被打印后，prints方法会再次调用set\_cursor\_position以更新屏幕的光标位置，确保后续的输出能够从正确的位置开始。通过这种方式，prints方法提供了一种高效且方便的方式来在VGA文本模式下输出完整的字符串。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub fn prints(&mut self, s: &str) {
+    let cursor: (u16, u16) = self.get_cursor_position();
+    self.x = cursor.0;
+    self.y = cursor.1;
+    for c in s.chars() {
+        self.printc(c);
+    }
+    self.set_cursor_position();
+}
+    \end{minted}
+    \caption{prints方法}\label{lst:PrintsMethod}
+\end{listing}
+
+\subsubsection{delete方法}
+
+delete 方法（\cref{lst:DeleteMethod}）在 VGA 文本模式中的实现允许用户擦除屏幕上最后一个显示的字符。此方法通过检查当前光标位置并适当调整，以定位需要擦除的字符。如果光标不在行首，它将向左移动一个位置；如果在行首但非屏幕顶端，则移动到上一行的末尾。接着，方法在计算出的地址位置写入空格字符，实际上是用空格覆盖了原字符，同时保持字符的颜色属性不变。这个过程不仅包括了字符的视觉擦除，也正确地更新了光标的位置，确保了继续输入或进一步删除的准确性。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub fn delete(&mut self) {
+    if self.x > 0 {
+        self.x -= 1;
+    } else if self.y > 0 {
+        self.y -= 1;
+        self.x = VGA_WIDTH - 1;
+    } else {
+        return;
+    }
+    let target: *mut u8 = (VGA_START + ((self.y * VGA_WIDTH + self.x) * 2) as u32) as *mut u8;
+    unsafe {
+        *target = b' ' as u8;
+        *target.byte_add(1) = self.bg_color << 4 | self.fg_color;
+    }
+    self.set_cursor_position();
+}
+    \end{minted}
+    \caption{delete方法}\label{lst:DeleteMethod}
+\end{listing}
+
+\subsubsection{get\_cursor\_position方法}
+
+get\_cursor\_position 方法（\cref{lst:GetCursorPositionMethod}）在 VGA 文本模式中用于获取当前光标的位置。此方法是理解和操作光标在屏幕上的位置的关键，它返回一个包含两个元素的元组 (u16, u16)，分别代表光标的列（x 坐标）和行（y 坐标）。
+
+该方法的实现涉及到对硬件端口的直接操作，以查询视频硬件当前的光标位置。具体步骤如下：
+
+\begin{enumerate}
+    \item \textbf{初始化变量}：方法开始时，初始化一个用于存储光标位置索引的变量 index。
+    \item \textbf{读取光标低字节}：通过向 VGA 控制寄存器（端口 0x3D4）写入命令 0x0F，请求返回光标位置的低字节。随后从数据寄存器（端口 0x3D5）读取这个字节并存入 index。
+    \item \textbf{读取光标高字节}：再次向控制寄存器写入命令 0x0E，请求返回光标位置的高字节。读取该字节后，将其左移8位并与 index 合并，从而得到完整的光标位置索引。
+    \item \textbf{计算坐标}：使用 index 值计算光标的行和列坐标。光标的列坐标是 index \% VGA\_WIDTH（index 与屏幕宽度的余数），行坐标是 index / VGA\_WIDTH（index 除以屏幕宽度的商）。
+\end{enumerate}
+
+通过这种方法，get\_cursor\_position 函数能够准确地从底层硬件中检索光标的当前位置，为屏幕上的文本操作提供必要的坐标信息。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub fn get_cursor_position(&self) -> (u16, u16) {
+    let mut index: u16 = 0;
+    unsafe {
+        asm!("out dx, al", in("dx") 0x3D4u16, in("al") 0x0Fu8);
+        let mut a: u8;
+        asm!("in al, dx", out("al") a, in("dx") 0x3D5);
+        index |= a as u16;
+        asm!("out dx, al", in("dx") 0x3D4u16, in("al") 0x0Eu8);
+        let b: u8;
+        asm!("in al, dx", out("al") b, in("dx") 0x3D5);
+        index |= (b as u16) << 8;
+    }
+    (index % VGA_WIDTH, index / VGA_WIDTH)
+}
+    \end{minted}
+    \caption{get\_cursor\_position方法}\label{lst:GetCursorPositionMethod}
+\end{listing}
+
+\subsubsection{set\_cursor\_position方法}
+
+set\_cursor\_position 方法（\cref{lst:SetCursorPositionMethod}）在 VGA 文本模式中用于设置光标的位置。此方法是调整屏幕上光标位置的关键函数，确保文本输入和编辑能够在正确的屏幕位置进行。它通过直接与硬件通信，将光标定位到由内部状态（self.x 和 self.y）指定的新位置。
+
+该方法的执行过程涉及以下步骤：
+
+\begin{enumerate}
+    \item \textbf{计算光标索引}：首先，根据光标的行 (self.y) 和列 (self.x) 坐标，计算光标在 VGA 文本缓冲区中的线性位置索引。这是通过表达式 self.y * VGA\_WIDTH + self.x 完成的，其中 VGA\_WIDTH 是屏幕的宽度（通常为80个字符）。
+    \item \textbf{设置光标低字节}：使用汇编指令向 VGA 控制寄存器（端口 0x3D4）写入光标位置低字节的命令 0x0F，然后通过数据寄存器（端口 0x3D5）设置光标位置的低字节，即 index \& 0xFF（索引的低8位）。
+    \item \textbf{设置光标高字节}：继续使用汇编指令向 VGA 控制寄存器写入光标位置高字节的命令 0x0E，再通过数据寄存器设置光标位置的高字节，即 (index >> 8) \& 0xFF（索引的高8位）。
+\end{enumerate}
+
+通过这种方法，set\_cursor\_position 函数能够精确地将光标移动到所需的屏幕位置，这对于实现屏幕文本的正确渲染和用户交互的流畅性是至关重要的。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub fn set_cursor_position(&self) {
+    let index: u16 = self.y * VGA_WIDTH + self.x;
+    unsafe {
+        asm!("out dx, al", in("dx") 0x3D4u16, in("al") 0x0Fu8);
+        asm!("out dx, al", in("dx") 0x3D5u16, in("al") (index & 0xFF) as u8);
+        asm!("out dx, al", in("dx") 0x3D4u16, in("al") 0x0Eu8);
+        asm!("out dx, al", in("dx") 0x3D5u16, in("al") ((index >> 8) & 0xFF) as u8);
+    }
+}
+    \end{minted}
+    \caption{set\_cursor\_position方法}\label{lst:SetCursorPositionMethod}
+\end{listing}
+
+\subsubsection{scroll方法}
+
+scroll 方法（\cref{lst:ScrollMethod}）在 VGA 文本模式中用于滚动屏幕内容，使得当文本到达屏幕底部时可以继续显示新的文本。这个方法是文本模式下管理屏幕输出的重要组成部分，尤其是在处理长文本或连续输出时非常有用。
+
+该方法的基本逻辑如下：
+
+\begin{enumerate}
+    \item \textbf{内存复制}：方法首先遍历屏幕上的每一行。对于每一行，它计算当前行在 VGA 内存中的起始地址，并将其上一行的内容复制到当前行的位置。这种操作实质上是将屏幕上所有行的内容向上移动一行。
+    \item \textbf{处理最后一行}：由于最顶部的一行被移出屏幕，最底部的新行需要被清空或用新的内容填充。在此实现中，新的行通常会被清空或设置为默认的背景和前景色，以等待新的文本输入。
+    \item \textbf{内存操作安全性}：所有内存操作都是在 unsafe 块中执行的，因为它们涉及直接的指针操作。这是必要的，因为 VGA 文本模式直接与硬件相关的内存交互，需要确保操作的正确性和内存安全。
+\end{enumerate}
+
+通过这种方式，scroll 方法有效地管理了屏幕空间，确保即使在连续输出的情况下也能保持屏幕内容的连续性和可读性。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub fn scroll(&mut self) {
+    for i in 0..VGA_HEIGHT {
+        for j in (VGA_WIDTH * i)..((VGA_WIDTH * i) + VGA_WIDTH) {
+            let new: *mut u8 = (VGA_START + (j * 2) as u32) as *mut u8;
+            let old: *const u8 = (VGA_START + ((j + VGA_WIDTH) * 2) as u32) as *const u8;
+            unsafe {
+                *new = *old;
+                *new.byte_add(1) = *old.byte_add(1);
+            }
+        }
+    }
+}
+    \end{minted}
+    \caption{scroll方法}\label{lst:ScrollMethod}
+\end{listing}
+
+\subsubsection{set\_colors方法和reset\_colors方法}
+
+set\_colors 方法（\cref{lst:SetColorsAndResetColorsMethod}）用于设置 VGA 文本模式下字符的前景色和背景色。此方法接受两个参数：fg\_color 和 bg\_color，分别代表前景色和背景色的颜色代码。调用此方法后，所有后续打印到屏幕的字符都将使用这些颜色设置，直到再次更改颜色或重置颜色。这为用户提供了自定义屏幕文本外观的灵活性，非常适合需要强调或区分不同文本部分的场景。reset\_colors 方法（\cref{lst:SetColorsAndResetColorsMethod}）是 set\_colors 方法的一个特例，它将前景色和背景色重置为默认值。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub fn set_colors(&mut self, fg_color: u8, bg_color: u8) {
+    self.fg_color = fg_color;
+    self.bg_color = bg_color;
+}
+
+pub fn reset_colors(&mut self) {
+    self.set_colors(COLOR_WHITE, COLOR_BLACK)
+}
+    \end{minted}
+    \caption{set\_colors方法和reset\_colors方法}\label{lst:SetColorsAndResetColorsMethod}
+\end{listing}
+
+\subsubsection{new\_line方法}
+
+new\_line 方法（\cref{lst:NewLineMethod}）用于在 VGA 文本模式下移动光标到下一行的开始位置。如果光标已经在屏幕的最后一行，这个方法会触发 scroll 方法，将屏幕内容向上滚动一行，从而为新的一行腾出空间。这个方法简化了文本输出的处理，特别是在处理多行文本时，保证了文本的连续和整洁展示。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub fn new_line(&mut self) {
+    if self.y == VGA_HEIGHT - 1 {
+        self.scroll();
+    } else {
+        self.y += 1;
+    }
+    self.x = 0;
+    self.set_cursor_position();
+}
+    \end{minted}
+    \caption{new\_line方法}\label{lst:NewLineMethod}
+\end{listing}
+
+\subsubsection{clear方法}
+
+clear 方法（\cref{lst:ClearMethod}）用于清除 VGA 文本模式下的整个屏幕，设置所有字符单元为空格，并应用当前的颜色设置。此操作将光标重置到屏幕的左上角，为新的文本输出提供一个干净的环境。这个方法通常在程序开始运行时或者需要完全清除屏幕内容时使用，确保了屏幕内容的清晰和整洁。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub fn clear(&mut self) {
+    self.x = 0;
+    self.y = 0;
+    for i in 0..(VGA_WIDTH * VGA_HEIGHT) {
+        let target: *mut u8 = (VGA_START + (i * 2) as u32) as *mut u8;
+        unsafe {
+            *target = b' ' as u8;
+            *target.byte_add(1) = self.bg_color << 4 | self.fg_color;
+        }
+    }
+    self.set_cursor_position();
+}
+    \end{minted}
+    \caption{clear方法}\label{lst:ClearMethod}
+\end{listing}
+
+\cref{fig:VGATextModePresentation}展示了VGA文本模式。VGA文本模式提供了一种低资源消耗且执行高效的方式，用于在早期计算机系统中进行基本文本显示和简单用户界面的构建。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/VGATextModePresentation.png}
+    \caption{VGA文本模式演示}
+    \label{fig:VGATextModePresentation}
+\end{figure}
 
 \subsection{内存管理（Memory Management）}
 
+在MinmusOS中，内存管理由两个核心组件处理：内存分配器（Memory Allocator）和分页管理器（Paging Manager）。kernel/src/memory/allocator.rs定义了一个名为Allocator的内存分配器，它实现了Rust标准库的GlobalAlloc特质，提供了基本的内存分配和释放接口。kernel/src/memory/paging.rs包含分页管理逻辑，定义了PageDirectory和PageTable结构，用于处理虚拟地址到物理地址的映射。这包括设置页表、启用分页机制，并提供标识映射的功能，即将一系列预定义的虚拟地址直接映射到相同的物理地址。这样的内存管理设计旨在支持操作系统的基础内存操作需求，为更复杂的内存管理特性和优化提供基础。
+
+\subsubsection{内存分配器（Memory Allocator）}
+
+MinmusOS 的内存分配器设计相对简单，使用了单链表结构管理内存块。这种设计虽然易于实现和理解，但在复杂的场景下，可能会因为频繁的链表操作而导致性能瓶颈。因此，在未来版本中，可能需要考虑引入更高级的内存管理机制，如伙伴分配器或堆碎片整理策略，以提升内存分配的效率和鲁棒性。
+
+\paragraph{\texttt{Block}数据结构}
+
+Block 结构体（\cref{lst:BlockDataStructure}）表示内存分配器中的一个内存块，包含两个字段：size 表示内存块的大小，next 是一个 \texttt{Option<NonNull<Block>>} 类型的字段，指向下一个内存块。自动派生的 Copy 和 Clone 特质使得 Block 结构体可以按值进行复制，Debug 特质允许对其进行调试输出。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+#[derive(Copy, Clone, Debug)]
+struct Block {
+    size: usize,
+    next: Option<NonNull<Block>>,
+}
+    \end{minted}
+    \caption{\texttt{Block}数据结构}\label{lst:BlockDataStructure}
+\end{listing}
+
+\paragraph{\texttt{Allocator}数据结构}
+
+Allocator 结构体（\cref{lst:AllocatorDataStructure}）包含一个 \texttt{AtomicPtr<Block>} 类型的头指针 head，它指向一个内存块链表的起始位置。链表中的每个节点表示一个可用的内存块，其大小由 size 字段表示，next 字段指向下一个内存块。通过使用原子指针，Allocator 能够在多线程环境中安全地更新链表。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub struct Allocator {
+    head: AtomicPtr<Block>,
+}
+    \end{minted}
+    \caption{\texttt{Allocator}数据结构}\label{lst:AllocatorDataStructure}
+\end{listing}
+
+init 方法（\cref{lst:AllocatorImplementation}）用于初始化内存分配器的堆空间。该方法接受堆的起始地址和大小，并将堆视为一个大的空闲内存块。这个初始内存块被存储在 head 指针中，准备好供后续的分配操作使用。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+impl Allocator {
+    pub const fn new() -> Self {
+        Allocator {
+            head: AtomicPtr::new(ptr::null_mut())
+        }
+    }
+
+    pub unsafe fn init(&self, heap_start: usize, heap_size: usize) {
+        let block = Block {
+            size: heap_size,
+            next: None,
+        };
+        let block_ptr: *mut Block = heap_start as *mut Block;
+        ptr::write(block_ptr, block);
+        self.head.store(block_ptr, Ordering::SeqCst);
+    }
+}
+    \end{minted}
+    \caption{\texttt{Allocator}数据结构实现}\label{lst:AllocatorImplementation}
+\end{listing}
+
+\subsubsection{全局分配器接口（GlobalAlloc Trait）}
+
+\cref{lst:GlobalAllocAllocMethod}实现了 GlobalAlloc 特质中的 alloc 方法。该方法接受一个 Layout 参数，表示所需内存的大小和对齐要求。分配器会遍历内存块链表，找到第一个满足要求的内存块并将其分配出去。如果找到合适的块，它将更新链表头指针，指向下一个空闲块。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+    let mut current: *mut Block = self.head.load(Ordering::SeqCst);
+    let alloc_size: usize = layout.size().max(layout.align());
+    while !current.is_null() {
+        let current_block: &mut Block = &mut *current;
+        if current_block.size >= alloc_size {
+            self.head.store(current_block.next.map_or(ptr::null_mut(), |b| b.as_ptr()), Ordering::SeqCst);
+            return current as *mut u8;
+        }
+        current = current_block.next.map_or(ptr::null_mut(), |b| b.as_ptr());
+    }
+    ptr::null_mut()
+}
+    \end{minted}
+    \caption{alloc内存分配接口}\label{lst:GlobalAllocAllocMethod}
+\end{listing}
+
+\cref{lst:GlobalAllocDeallocMethod}实现了 GlobalAlloc 特质中的 dealloc 方法，用于释放已分配的内存。dealloc 方法会将释放的内存块重新插入到链表的头部，从而使其能够被未来的内存分配请求重用。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+    let mut new_block = Block {
+        size: layout.size(),
+        next: None,
+    };
+    new_block.next = NonNull::new(self.head.load(Ordering::SeqCst));
+    let new_block_ptr: *mut Block = ptr as *mut Block;
+    ptr::write(new_block_ptr, new_block);
+    self.head.store(new_block_ptr, Ordering::SeqCst);
+}
+    \end{minted}
+    \caption{dealloc内存释放接口}\label{lst:GlobalAllocDeallocMethod}
+\end{listing}
+
+这个内存分配器的实现为操作系统的基础内存管理提供了核心支持，允许操作系统在不同的场景中动态分配和释放内存资源，从而更好地支持应用程序的执行和资源管理。
+
+\subsubsection{分页管理器（Paging Manager）}
+
+分页管理器（Paging Manager）负责操作系统中的分页内存管理机制，通过维护分页目录（Page Directory）和页表（Page Table）来管理虚拟内存与物理内存的映射关系。分页管理器的核心任务包括创建和初始化分页结构，设置页表项，并启用分页模式，使系统能够在启用分页后正确映射和管理内存。
+
+\paragraph{全局分页变量（Global Paging Variables）}
+
+\cref{lst:GlobalPagingVariables}定义了操作系统分页管理中使用的全局分页变量，包括分页目录（Page Directory）和页表（Page Table）。这些变量在整个系统中是全局共享的，确保分页机制能够在各个模块中一致地运作。为了适应分页内存管理的需求，这些数据结构被静态定义，并且通过特定的内存对齐方式进行存储，以确保其高效且正确的访问。
+
+全局变量 PAGING 定义了一个全局的分页目录，用于存储虚拟内存与物理内存的映射关系。分页目录包含1024个条目，每个条目对应一个页表指针。全局变量 TABLES 是一个包含16个页表的数组，这些页表用于进一步细化内存映射，每个页表也包含1024个条目，指向物理内存中的实际页。初始状态下，这些页表被定义为 NULL\_TABLE，即一个默认的空页表。
+
+NULL\_TABLE 作为一个全局常量，被初始化为全零的页表，用于未被分配或尚未使用的页表项。这个设计确保了系统在初始状态下的安全性与稳定性，防止未初始化的页表带来的潜在问题。通过这些全局变量，操作系统能够高效地管理内存映射关系，为不同进程提供隔离和保护。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub static mut PAGING: PageDirectory = PageDirectory { entries: [0x00000002; 1024] };
+pub static mut TABLES: [PageTable; 16] = [NULL_TABLE; 16];
+pub static NULL_TABLE: PageTable = PageTable { entries: [0; 1024] };
+    \end{minted}
+    \caption{全局分页变量}\label{lst:GlobalPagingVariables}
+\end{listing}
+
+\paragraph{分页目录（Page Directory）}
+
+PageDirectory 数据结构（\cref{lst:PageDirectoryDataStructure}）使用了一个长度为 1024 的 entries 数组，每个数组项为 32 位无符号整数类型（u32），用来存储页表的物理地址和控制标志。数组中的每个条目对应着 4MB 的虚拟内存范围，其内容是页表的起始地址加上分页控制位。这种设计允许操作系统通过访问 entries 数组的不同索引来管理不同的内存段。
+
+PageDirectory 提供了几个关键的方法来操作分页目录：
+
+\begin{enumerate}
+    \item \textbf{set\_table 方法}：该方法用于将一个页表的地址设置到分页目录中的指定索引位置。具体实现上，它接受一个页表指针，将其转换为对应的物理地址，并将该地址与必要的控制位（例如存在位和读写位）进行按位或运算，最终存储在 entries 数组的指定位置。这确保了该页表在分页系统中被正确识别和使用。
+    \item \textbf{enable 方法}：该方法用于启用分页模式。它首先将分页目录的地址加载到控制寄存器 CR3 中，然后通过修改 CR0 寄存器的相应标志位来启用分页功能。这个操作是分页机制中至关重要的一步，允许操作系统从此时开始使用分页来管理内存。
+    \item \textbf{identity 方法}：该方法用于进行内存的身份映射（identity mapping），将特定的物理地址范围直接映射到相同的虚拟地址范围。在实现上，它遍历 TABLES 数组的前八个页表，将每个页表初始化为对应的物理地址区间，并将这些页表加载到分页目录的前八个条目中。这种映射方式通常用于内核空间的地址映射，确保内核在启用分页后能够继续正常访问内存。
+\end{enumerate}
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+        #[repr(align(4096))]
+pub struct PageDirectory {
+    pub entries: [u32; 1024],
+}
+
+impl PageDirectory {
+    pub fn set_table(&mut self, index: usize, table: &PageTable) {
+        self.entries[index] = (table as *const PageTable) as u32 | 0b011;
+    }
+
+    pub fn enable(&self) {
+        unsafe {
+            let address: u32 = (self as *const PageDirectory) as u32;
+            core::arch::asm!(
+            "mov cr3, eax",
+            "mov eax, cr0",
+            "or eax, 0x80000001",
+            "mov cr0, eax",
+            in("eax") address,
+            );
+        }
+    }
+
+    pub fn identity(&mut self) {
+        unsafe {
+            for i in 0..8 {
+                TABLES[i].set((0x00400000 * i) as u32);
+                PAGING.set_table(i, &TABLES[i]);
+            }
+        }
+    }
+}
+    \end{minted}
+    \caption{\texttt{PageDirectory}数据结构}\label{lst:PageDirectoryDataStructure}
+\end{listing}
+
+\paragraph{页表（Page Table）}
+
+PageTable 数据结构由一个长度为 1024 的 entries 数组构成，每个数组项为 32 位无符号整数类型（u32），用于存储指向具体物理内存页的地址和相关的控制位。该数据结构被定义为带有 4096 字节对齐的结构体，确保页表在内存中的对齐要求与分页机制保持一致。这种对齐方式是分页系统中至关重要的一部分，有助于提高内存访问的效率和准确性。
+
+在 PageTable 结构体（\cref{lst:PageTableDataStructure}）中，每个 entries 数组元素对应一个 4KB 的内存页，因此整个 PageTable 能够管理 4MB 的虚拟内存范围。每个数组项存储的内容包括物理页的起始地址以及一些控制位，这些控制位用于指定页面是否存在、可读写、用户权限等。
+
+PageTable 提供了 set 方法。set 方法用于初始化页表中的所有条目，将它们映射到一个从指定起始地址开始的物理内存范围。方法接受一个 from 参数，表示物理地址的起始点。方法通过循环遍历 entries 数组，将每个条目设置为一个物理页的地址和相关的控制位。具体地，物理地址的计算是通过将数组索引乘以页面大小（4KB）并加上 from 参数来实现的。控制位则通过按位或运算加入到地址中，通常包括页面的存在位和读写权限位。这种方式允许操作系统将连续的一段虚拟地址映射到连续的物理地址，提供了对内存的有效管理。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+#[derive(Copy, Clone, Debug)]
+#[repr(align(4096))]
+pub struct PageTable {
+    pub entries: [u32; 1024],
+}
+
+impl PageTable {
+    pub fn set(&mut self, from: u32) {
+        for i in 0..1024 {
+            self.entries[i] = (((i * 0x1000) + from as usize) | 0b011) as u32;
+        }
+    }
+}
+    \end{minted}
+    \caption{\texttt{PageTable}数据结构}\label{lst:PageTableDataStructure}
+\end{listing}
+
+\subsubsection{分页目录（Page Directory）与页表（Page Table）}
+
+\cref{fig:PageDirectoryAndPageTable}展示了分页目录与页表的结构与联系。
+
+分页目录是分页机制的第一层结构，用于管理整个虚拟内存空间的映射。一个分页目录包含1024个条目，每个条目指向一个页表。分页目录本身的每个条目管理着一个大的虚拟地址块，通常是4MB的虚拟内存。因此，分页目录的主要作用是将虚拟地址空间划分成更小的段，并通过页表进一步细化这些段的地址映射。
+
+页表是分页机制的第二层结构，用于细化虚拟地址到物理地址的映射。每个页表也包含1024个条目，每个条目对应一个4KB的物理内存页。因此，页表的作用是将从分页目录获得的虚拟地址范围进一步分解，精确映射到物理内存的具体页面。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/PageDirectoryAndPageTable.png}
+    \caption{分页目录与页表}
+    \label{fig:PageDirectoryAndPageTable}
+\end{figure}
+
+分页目录的主要功能是通过其条目指向不同的页表，从而管理大块虚拟地址空间。它起到了一个索引的作用，将虚拟地址的高位部分映射到对应的页表。页表的功能是将分页目录指向的虚拟地址块进一步细化，映射到具体的物理内存页。它完成了从虚拟地址到物理地址的最终转换。
+
+分页管理器通过组合分页目录和页表，提供了一种灵活的内存管理机制，使得操作系统能够有效地管理和保护内存资源，支持多任务和内存隔离的实现。
+
 \subsection{文件系统（File System）}
+
+\subsubsection{FAT16文件系统}
+
+FAT16（File Allocation Table 16-bit，16位文件分配表）是微软最早开发的文件系统之一，最早在MS-DOS操作系统中引入。FAT16的设计目的是为了在早期的磁盘驱动器上高效地管理文件和目录。以下是FAT16文件系统的详细介绍：
+
+\begin{enumerate}
+    \item \textbf{文件分配表（FAT）}：FAT是文件系统的核心部分，用于记录每个文件在磁盘上的存储位置。FAT表本质上是一个链表，每个文件由多个簇（Cluster）组成，而每个簇对应于FAT表中的一个条目。FAT表记录了每个簇的下一个簇的位置，文件的最后一个簇标记为0xFFFF，表示文件结束。
+          \begin{enumerate}
+              \item \textbf{16位条目}：FAT16使用16位条目来表示每个簇的索引，因此它最多可以管理 $2^16 = 65536$ 个簇。
+              \item \textbf{簇链}：文件在磁盘上的簇可能不是连续存储的，FAT表将这些分散的簇链在一起，形成文件的完整数据。
+          \end{enumerate}
+    \item \textbf{簇（Cluster）}：簇是FAT文件系统中磁盘的基本分配单位。簇由多个扇区（通常为512字节）组成，文件在磁盘上的存储是以簇为单位进行分配的。簇的大小决定了文件系统的最大容量和性能。
+          \begin{enumerate}
+              \item \textbf{簇大小}：通常簇大小为4KB、8KB或更大，具体取决于磁盘的大小。较大的簇有助于减少FAT表的大小，但也可能导致磁盘空间浪费（特别是存储小文件时）。
+          \end{enumerate}
+    \item \textbf{文件和目录}：在FAT16文件系统中，文件和目录的信息存储在根目录和子目录中。每个文件和目录的元数据保存在一个32字节的目录项中。
+          \begin{enumerate}
+              \item \textbf{文件名}：FAT16使用8.3格式（8个字符的文件名加上3个字符的扩展名）来表示文件名。
+              \item \textbf{目录结构}：目录也是一种文件，它包含子目录和文件的列表。根目录有固定的大小，不能动态扩展。
+              \item \textbf{元数据}：每个目录项包含文件或目录的名称、文件大小、起始簇号、创建时间、修改时间、属性（如只读、隐藏、系统文件等）等信息。
+          \end{enumerate}
+    \item \textbf{扇区（Sector）和磁盘布局}：磁盘在FAT16文件系统中按照一定的布局分为多个区域，每个区域有特定的功能：
+          \begin{enumerate}
+              \item \textbf{引导扇区（Boot Sector）}：磁盘的第一个扇区，包含引导程序和文件系统的基本信息，如每簇的扇区数、FAT表的起始位置、根目录的起始位置等。
+              \item \textbf{FAT表区域}：存放FAT表的数据，通常有两份FAT表用于冗余备份。
+              \item \textbf{根目录区域}：存放根目录的目录项，FAT16的根目录区大小固定，通常位于FAT表之后。
+              \item \textbf{数据区}：存放实际文件和目录数据，由簇构成。
+          \end{enumerate}
+    \item \textbf{文件操作}：在FAT16中，文件的操作包括创建、删除、读取和写入文件等。这些操作都是通过更新FAT表和目录项来实现的。
+          \begin{enumerate}
+              \item \textbf{创建文件}：在根目录或子目录中创建一个新的目录项，为文件分配簇，并在FAT表中记录簇链。
+              \item \textbf{删除文件}：标记目录项为删除，并释放FAT表中对应的簇。
+              \item \textbf{读取文件}：根据目录项中的起始簇号，遍历FAT表获取文件的所有簇，并读取这些簇的数据。
+              \item \textbf{写入文件}：找到文件的空闲簇，更新FAT表和目录项，将数据写入相应的簇。
+          \end{enumerate}
+    \item \textbf{限制和特点}：由于使用16位的簇索引，FAT16的最大卷大小为2GB（如果使用32KB的簇），且文件名必须遵循8.3格式，这对文件命名有一定的限制。此外FAT16没有内建的文件权限管理功能，不支持复杂的安全策略。
+\end{enumerate}
+
+\subsubsection{FAT16全局常量定义}
+
+\cref{lst:FAT16GlobalConstantDefinitions}在 FAT16 文件系统实现中分别定义了以下内容：
+
+\begin{enumerate}
+    \item \texttt{ENTRY\_COUNT}：定义了根目录中最多可以容纳的目录项数量为 512，用于限制根目录的文件和子目录数量。
+    \item \texttt{FAT\_START}：指定了文件分配表（FAT）在磁盘上的起始位置（逻辑块地址 LBA），其值为 36864，用于定位 FAT 表在磁盘上的位置。
+    \item \texttt{FAT\_SIZE}：定义了 FAT 表的大小为 256，表示 FAT 表中可以存储的簇链条目数量，用于跟踪文件在磁盘上的簇链。
+\end{enumerate}
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+const ENTRY_COUNT: usize = 512;
+const FAT_START: u16 = 36864;
+const FAT_SIZE: usize = 256;
+    \end{minted}
+    \caption{FAT16全局常量定义}\label{lst:FAT16GlobalConstantDefinitions}
+\end{listing}
+
+\subsubsection{Header数据结构}
+
+Header 结构体（\cref{lst:HeaderDataStructure}）表示 FAT16 文件系统的引导扇区信息，用于存储文件系统的元数据，包括引导加载器代码、文件系统参数（如扇区大小、簇大小、FAT 表数量等）、卷标信息和保留区域。这个结构体在加载 FAT16 文件系统时至关重要，因为它提供了文件系统布局的基本信息，帮助操作系统正确解析和操作磁盘上的数据。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+#[derive(Copy, Clone, Debug)]
+#[repr(C, packed)]
+pub struct Header {
+    boot_jump_instructions: [u8; 3], // 引导跳转指令，用于启动时跳转到引导程序
+    oem_identifier: [u8; 8],         // OEM 标识符，标识文件系统创建的操作系统或工具
+    bytes_per_sector: u16,           // 每扇区字节数，通常为 512 字节
+    sectors_per_cluster: u8,         // 每簇包含的扇区数，决定了簇的大小
+    reserved_sectors: u16,           // 保留扇区数，通常包括引导扇区和其他保留数据
+    fat_count: u8,                   // FAT 表的数量，通常为 2，用于冗余备份
+    dir_entries_count: u16,          // 根目录的目录项数量，表示根目录最多可以容纳的文件和目录数量
+    total_sectors: u16,              // 总扇区数，如果为 0，则使用 large_sector_count 字段
+    media_descriptor_type: u8,       // 媒体描述符类型，标识存储设备的类型
+    sectors_per_fat: u16,            // 每个 FAT 表占用的扇区数
+    sectors_per_track: u16,          // 每个磁道的扇区数，用于 CHS（柱面-磁头-扇区）寻址模式
+    heads: u16,                      // 磁头数，用于 CHS 寻址模式
+    hidden_sectors: u32,             // 隐藏扇区数，表示从磁盘起始到分区起始之间的扇区数
+    large_sector_count: u32,         // 总扇区数（如果 total_sectors 为 0），用于支持大于 32MB 的卷
+    drive_number: u8,                // 驱动器号，通常为 0x80 表示硬盘
+    reserved: u8,                    // 保留字段，通常为 0，未使用
+    signature: u8,                   // 扩展引导签名，用于验证引导扇区是否有效
+    volume_id: u32,                  // 卷序列号，用于唯一标识卷
+    volume_label: [u8; 11],          // 卷标，用于显示卷的名称
+    system_id: [u8; 8],              // 文件系统类型标识符，如 "FAT16   "
+    zero: [u8; 460],                 // 填充字段，通常为 0，用于对齐和保留空间
+}
+    \end{minted}
+    \caption{\texttt{Header}数据结构}\label{lst:HeaderDataStructure}
+\end{listing}
+
+NULL\_HEADER 是一个用于初始化 Header 结构体的静态变量，其作用是提供一个默认的、空的 FAT16 文件系统头部信息。当创建或初始化一个 Header 变量时，如果尚未从磁盘加载实际的文件系统信息，可以使用 NULL\_HEADER 作为占位符。它确保在没有加载有效数据之前，Header 结构体中的字段都被安全地设置为默认值（通常是零或空值），防止意外访问未初始化的数据。
+
+\subsubsection{Entry数据结构}
+
+Entry 结构体（\cref{lst:EntryDataStructure}）表示 FAT16 文件系统中的目录项，用于存储文件或目录的元数据。每个目录项包含文件的名称、属性、创建和修改时间、文件的起始簇号以及文件大小等信息。这个结构体是 FAT16 文件系统管理文件和目录的基础单元，它通过这些元数据来描述文件在磁盘上的位置和相关属性，从而使操作系统能够正确地访问和管理文件。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+#[derive(Copy, Clone, Debug)]
+#[repr(C, packed)]
+pub struct Entry {
+    pub name: [u8; 11],      // 文件名，采用 8.3 格式（8 个字符的文件名 + 3 个字符的扩展名）
+    attributes: u8,          // 文件属性，如只读、隐藏、系统文件等
+    reserved: u8,            // 保留字段，未使用
+    created_time_tenths: u8, // 文件创建时间的十分之一秒，用于提高时间精度
+    created_time: u16,       // 文件创建时间（小时、分钟、秒）
+    created_date: u16,       // 文件创建日期（年、月、日）
+    accessed_date: u16,      // 最近访问日期
+    first_cluster_high: u16, // 文件的起始簇号高 16 位（仅用于 FAT32，FAT16 中未使用）
+    modified_time: u16,      // 最近修改时间（小时、分钟、秒）
+    modified_date: u16,      // 最近修改日期（年、月、日）
+    first_cluster_low: u16,  // 文件的起始簇号低 16 位，指向文件内容在数据区的起始位置
+    size: u32,               // 文件大小，以字节为单位
+}
+    \end{minted}
+    \caption{\texttt{Entry}数据结构}\label{lst:EntryDataStructure}
+\end{listing}
+
+NULL\_ENTRY 是一个用于初始化 Entry 结构体的静态变量，其作用是提供一个默认的、空的目录项。当创建或初始化一个 Entry 变量时，如果尚未加载实际的文件或目录信息，可以使用 NULL\_ENTRY 作为占位符。它的存在确保在遍历或操作目录项时，如果遇到无效或空的目录项，能够安全地返回 NULL\_ENTRY，从而避免处理无效数据，保持程序的稳定性和安全性。
+
+\subsubsection{FatDriver数据结构}
+
+FatDriver 结构体（\cref{lst:FatDriverDataStructure}）是 FAT16 文件系统驱动程序的核心数据结构，设计用于管理和操作文件系统。它包含四个关键部分：header 存储 FAT16 文件系统的引导扇区信息，entries 存储根目录中的所有目录项，table 存储文件分配表（FAT），buffer 用于临时存储从磁盘读取的文件数据。通过这种设计，FatDriver 能够全面管理 FAT16 文件系统的基本操作，包括文件和目录的读取、写入以及簇链的管理。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+#[derive(Copy, Clone, Debug)]
+pub struct FatDriver {
+    pub header: Header,
+    pub entries: [Entry; ENTRY_COUNT],
+    pub table: [u16; FAT_SIZE],
+    pub buffer: [u8; 2048],
+}
+    \end{minted}
+    \caption{\texttt{FatDriver}数据结构}\label{lst:FatDriverDataStructure}
+\end{listing}
+
+FAT 是一个全局静态变量（\cref{lst:FATGlobalStaticVariable}），使用 Mutex 保护 FatDriver 实例，以确保线程安全。它在程序启动时被初始化，将 header、entries 和 table 等结构体字段设置为默认的空值或零值，防止未初始化的访问。在实际操作过程中，FAT 作为整个 FAT16 文件系统的入口点，负责管理和调度文件系统的各种操作。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub static mut FAT: Mutex<FatDriver> = Mutex::new(FatDriver {
+    header: NULL_HEADER,
+    entries: [NULL_ENTRY; ENTRY_COUNT],
+    table: [0; FAT_SIZE],
+    buffer: [0; 2048],
+});
+    \end{minted}
+    \caption{FAT全局静态变量}\label{lst:FATGlobalStaticVariable}
+\end{listing}
+
+\subsubsection{FAT16文件操作}
+
+\paragraph{加载文件系统头部信息}
+
+load\_header 方法（\cref{lst:LoadHeaderMethod}）用于从磁盘的指定位置（由 FAT\_START 和 reserved\_sectors 决定）加载 FAT16 文件系统的头部信息（Header 结构体）到 FatDriver 的 header 字段中。这个操作是文件系统初始化的第一步，获取文件系统的基本参数如每扇区字节数、每簇扇区数等，为后续文件操作提供必要的元数据。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub fn load_header(&mut self) {
+    let target: *mut Header = &mut self.header as *mut Header;
+    let lba: u64 = FAT_START as u64;
+    let sectors: u16 = 1;
+    unsafe { DISK.read(target, lba, sectors); }
+}
+    \end{minted}
+    \caption{load\_header 方法}\label{lst:LoadHeaderMethod}
+\end{listing}
+
+\paragraph{加载根目录的目录项}
+
+load\_entries 方法（\cref{lst:LoadEntriesMethod}）从磁盘中加载根目录的所有目录项到 entries 数组中。通过计算目录项的起始逻辑块地址（LBA）和所需的扇区数，该方法将所有目录项数据从磁盘读取到内存中，以便后续对文件和目录的操作。根目录的目录项包含文件和子目录的元数据。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub fn load_entries(&mut self) {
+    let target: *mut Entry = &mut self.entries as *mut Entry;
+    let entry_size: u16 = size_of::<Entry>() as u16;
+    let lba: u64 = FAT_START as u64 + (self.header.reserved_sectors + self.header.sectors_per_fat * self.header.fat_count as u16) as u64;
+    let size: u16 = entry_size * self.header.dir_entries_count;
+    let sectors: u16 = size / self.header.bytes_per_sector;
+    unsafe { DISK.read(target, lba, sectors); }
+}
+    \end{minted}
+    \caption{load\_entries 方法}\label{lst:LoadEntriesMethod}
+\end{listing}
+
+\paragraph{列出根目录中的文件和目录}
+
+list\_entries 方法（\cref{lst:ListEntriesMethod}）遍历 entries 数组，并列出其中所有有效的目录项（文件或目录），打印出每个文件的名称和大小。这一方法用于展示根目录中的内容，帮助用户或系统查看文件系统中存在哪些文件和目录。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub fn list_entries(&self) {
+    lib::println!("Listing root directory entries:");
+    lib::println!("Filename     Size");
+    for i in 0..ENTRY_COUNT {
+        if self.entries[i].name[0] != 0 {
+            for c in self.entries[i].name { lib::print!("{}", c as char); }
+            let size = self.entries[i].size;
+            lib::println!("  {} bytes", size);
+        }
+    }
+}
+    \end{minted}
+    \caption{list\_entries 方法}\label{lst:ListEntriesMethod}
+\end{listing}
+
+\paragraph{加载文件分配表（FAT 表）}
+
+load\_table 方法（\cref{lst:LoadTableMethod}）从磁盘加载文件分配表（FAT）到 table 数组中。FAT 表记录了文件在磁盘上的簇链信息，表示文件的各个部分（簇）在磁盘中的物理位置。这个方法是文件读取和写入操作的前提，通过 FAT 表可以找到文件的所有数据块。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub fn load_table(&mut self) {
+    let target: *mut u16 = &mut self.table as *mut u16;
+    let lba: u64 = FAT_START as u64 + self.header.reserved_sectors as u64;
+    let sectors: u16 = 1;
+    unsafe { DISK.read(target, lba, sectors); }
+}
+    \end{minted}
+    \caption{load\_table 方法}\label{lst:LoadTableMethod}
+\end{listing}
+
+\paragraph{将文件内容读取到缓冲区}
+
+read\_file\_to\_buffer 方法（\cref{lst:ReadFileToBufferMethod}）用于将指定文件的内容从磁盘读取到 buffer 缓冲区中。它通过计算文件数据的起始 LBA，并使用 FAT 表找到文件的所有簇链，读取文件的内容到内存中的缓冲区中。这个方法适用于读取小文件或进行临时处理的场景。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub fn read_file_to_buffer(&self, entry: &Entry) {
+    let target: *mut u8 = self.buffer.as_ptr() as *mut u8;
+    let data_lba: u64 = FAT_START as u64 + (self.header.reserved_sectors + self.header.sectors_per_fat * self.header.fat_count as u16 + 32) as u64;
+    let lba: u64 = data_lba + ((entry.first_cluster_low - 2) * self.header.sectors_per_cluster as u16) as u64;
+    let sectors: u16 = self.header.sectors_per_cluster as u16;
+    unsafe { DISK.read(target, lba, sectors); }
+}
+    \end{minted}
+    \caption{read\_file\_to\_buffer 方法}\label{lst:ReadFileToBufferMethod}
+\end{listing}
+
+\paragraph{将文件内容读取到指定目标内存}
+
+read\_file\_to\_target 方法（\cref{lst:ReadFileToTargetMethod}）用于将文件的内容从磁盘读取到指定的目标内存位置。该方法通过遍历 FAT 表，逐簇读取文件内容，并将其写入目标内存地址，直到文件的最后一个簇。这种操作适用于需要将文件内容直接加载到指定内存区域的场景，如加载可执行文件。
+
+\paragraph{在目录中搜索文件}
+
+search\_file 方法（\cref{lst:SearchFileMethod}）在 entries 数组中搜索指定名称的文件或目录，并返回对应的目录项（Entry 结构体）。它逐个比较目录项中的文件名与目标名称，忽略大小写，并返回找到的文件或目录的元数据。如果未找到，返回 NULL\_ENTRY 作为占位符。这个方法用于查找文件系统中的具体文件或目录。
+
+\subsubsection{示例文本文件}
+
+MinmusOS提供了五个示例文本文件，加载到了根目录中：
+
+\begin{enumerate}
+    \item \textbf{cargo}：Cargo包管理器介绍。Cargo是Rust语言的官方包管理器和构建系统，主要负责管理项目依赖、确保构建的一致性与可复制性，同时支持复杂的项目管理。（\cref{fig:CargoFilePresentation}）
+    \item \textbf{license}：MinmusOS项目MIT许可证文件。（\cref{fig:LicenseFilePresentation}）
+    \item \textbf{minmusos}：MinmusOS欢迎文件与联系方式。（\cref{fig:MinmusOSFilePresentation}）
+    \item \textbf{rust}：Rust语言介绍。Rust是一种注重性能、安全性和并发的系统编程语言，通过独特的所有权系统实现无垃圾收集的内存安全。它广泛应用于高性能服务器和系统开发。（\cref{fig:RustFilePresentation}）
+    \item \textbf{thanks}：致谢。（\cref{fig:ThanksFilePresentation}）
+\end{enumerate}
+
+可以在命令行解释器（Shell）中通过cat命令查看这些文件。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub fn read_file_to_target(&self, entry: &Entry, target: *mut u32) {
+    let mut next_cluster: u16 = entry.first_cluster_low;
+    let mut current_target: *mut u32 = target;
+    loop {
+        let data_lba: u64 = FAT_START as u64 + (self.header.reserved_sectors + self.header.sectors_per_fat * self.header.fat_count as u16 + 32) as u64;
+        let lba: u64 = data_lba + ((next_cluster - 2) * self.header.sectors_per_cluster as u16) as u64;
+        let sectors: u16 = self.header.sectors_per_cluster as u16;
+        unsafe { DISK.read(current_target, lba, sectors); }
+        next_cluster = self.table[next_cluster as usize];
+        unsafe {
+            let cluster_size: u16 = self.header.sectors_per_cluster as u16 * self.header.bytes_per_sector;
+            current_target = current_target.byte_add(cluster_size as usize);
+        }
+        if next_cluster == 0xFFFF { break; }
+    }
+}
+    \end{minted}
+    \caption{read\_file\_to\_target 方法}\label{lst:ReadFileToTargetMethod}
+\end{listing}
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub fn search_file(&self, name: &[char]) -> &Entry {
+    for entry in self.entries.iter() {
+        let mut found: bool = true;
+        let mut i: usize = 0;
+        for n in name {
+            let mut c: char = n.clone();
+            if c.is_ascii_lowercase() { c = c.to_ascii_uppercase(); }
+            if (c != entry.name[i] as char) && (name[i] != '\0') { found = false; }
+            i += 1;
+        }
+        if found {
+            return entry;
+        }
+    }
+    &NULL_ENTRY
+}
+    \end{minted}
+    \caption{search\_file 方法}\label{lst:SearchFileMethod}
+\end{listing}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/CargoFilePresentation.png}
+    \caption{文本文件cargo演示}
+    \label{fig:CargoFilePresentation}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/LicenseFilePresentation.png}
+    \caption{文本文件license演示}
+    \label{fig:LicenseFilePresentation}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/MinmusOSFilePresentation.png}
+    \caption{文本文件minmusos演示}
+    \label{fig:MinmusOSFilePresentation}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/RustFilePresentation.png}
+    \caption{文本文件rust演示}
+    \label{fig:RustFilePresentation}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/ThanksFilePresentation.png}
+    \caption{文本文件thanks演示}
+    \label{fig:ThanksFilePresentation}
+\end{figure}
+
+\subsection{命令行解释器（Shell）}
