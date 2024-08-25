@@ -2779,4 +2779,250 @@ whoami 命令用于显示当前用户的身份。实现时，通过 \texttt{lib:
 
 \subsection{主启动程序（Main Boot Program）}
 
+\subsubsection{编译器指令}
+
+在 Rust 开发中，编译器指令（pragmas）以 \texttt{\#![...]} 的形式出现，它们为编译器提供了特定的指示。这里使用的指令（\cref{lst:CompilerDirectives}）具体意义如下：
+
+\begin{enumerate}
+    \item \texttt{\#![no\_std]}：这个属性指示 Rust 编译器不要链接到 Rust 的标准库（std），因为标准库依赖于操作系统的底层功能，例如线程和文件系统，这在裸机环境中通常是不可用的。使用 \texttt{\#![no\_std]}，需要依赖于 core 库，它是一个不依赖于操作系统的 Rust 库，提供了基本的语言构建块，如迭代器、基本类型和切片等。
+    \item \texttt{\#![no\_main]}：在 Rust 程序中，默认情况下，main 函数是程序的入口点。在裸机或内核开发中，常常需要自定义入口点（如 \_start），因为标准的 main 函数需要某些操作系统级别的初始化，这在操作系统开发中是不适用的。\texttt{\#![no\_main]} 属性用于告知编译器，这个程序将不使用标准的 main 函数作为入口点。
+    \item \texttt{\#![feature(naked\_functions)]}：“裸函数”（naked functions）是一种特殊类型的函数，它们允许开发者完全控制函数的入口和出口序列。这意味着这些函数不会生成任何额外的汇编指令来处理变量保存、寄存器恢复等，使得开发者可以精确地控制函数的所有汇编操作。这在写操作系统或其他需要精确控制汇编的环境中非常有用。
+    \item \texttt{\#![feature(pointer\_byte\_offsets)]}：这个特性允许在裸指针上使用 \texttt{.add()} 和 \texttt{.offset()} 方法来计算字节偏移，这在进行低级内存操作时非常有用。使用此功能可以更安全、更直接地管理内存地址和布局，尤其是在操作系统或底层系统编程中处理指针和地址时。
+\end{enumerate}
+
+这些属性和特性对于开发依赖于硬件操作和低级内存管理的应用程序，如操作系统内核，是非常关键的，它们使得 Rust 代码能够以更底层、更控制的方式运行。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+#![no_std]
+#![no_main]
+#![feature(naked_functions)]
+#![feature(pointer_byte_offsets)]
+    \end{minted}
+    \caption{编译器指令}\label{lst:CompilerDirectives}
+\end{listing}
+
+\subsubsection{常量定义}
+
+\cref{lst:KernelConstantDefinitions}中定义的这些常量具有关键的意义，主要用于内存布局的配置：
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+const KERNEL_START: u32 = 0x00100000;
+const KERNEL_SIZE: u32 = 0x00100000;
+const STACK_SIZE: u32 = 0x00100000;
+const STACK_START: u32 = KERNEL_START + KERNEL_SIZE + STACK_SIZE;
+    \end{minted}
+    \caption{常量定义}\label{lst:KernelConstantDefinitions}
+\end{listing}
+
+\begin{enumerate}
+    \item \texttt{KERNEL\_START}：这个常量定义了内核的起始物理地址。在这个示例中，0x00100000（十六进制）通常是指内存中的 1MB 位置。这是一个常见的起点，因为低于 1MB 的内存可能会被系统的 BIOS 或其他固件使用。选择这个地址作为内核的起始位置有助于避免与这些系统组件冲突。
+    \item \texttt{KERNEL\_SIZE}：这个常量定义了内核所占用的内存大小，也是 1MB。这意味着你的内核被设计为在物理内存的这个范围内运行。内核大小的设定需要足够容纳内核的所有代码和数据。
+    \item \texttt{STACK\_SIZE}：栈大小同样被设置为 1MB。栈是用于存储函数局部变量、返回地址和函数调用时的其他数据的内存区域。确保有足够的栈空间对于防止栈溢出和支持多层函数调用非常重要。
+    \item \texttt{STACK\_START}：这个常量计算的是栈的起始地址。它是通过在内核结束的地址（KERNEL\_START + KERNEL\_SIZE）之后再加上栈的大小（STACK\_SIZE）来确定的。这确保了栈空间在内核之后、且不与其他内存区域重叠，从而在物理内存中保持良好的组织和分隔。
+\end{enumerate}
+
+这些常量的设定对于内核的内存管理极其关键，它们确保了内核、栈和其他关键数据结构在物理内存中有合理的布局和足够的空间，从而提供了稳定运行的基础。
+
+\subsubsection{内核启动过程}
+
+在 MinmusOS 中，主启动程序（Main Boot Program）（\cref{lst:KernelBootFunction}）位于 kernel/src/main.rs 文件中，是整个操作系统内核的入口点。这个程序负责初始化系统的关键组件并进入操作系统的主循环。以下是主启动程序的主要步骤和它们的功能：
+
+\begin{enumerate}
+    \item \textbf{堆栈初始化}：在系统的最初阶段，需要设置堆栈指针（esp），确保在后续的程序中有足够的空间来存储局部变量和函数调用的返回地址。这一步是通过直接汇编指令设置 esp 寄存器完成的。
+    \item \textbf{分页初始化}：操作系统启动时，需要配置内存分页，以支持虚拟内存的使用。这里首先进行身份映射（所有物理地址直接映射到相同的虚拟地址），随后启用分页机制。
+    \item \textbf{加载中断描述符表（IDT）}：中断描述符表（IDT）是用于定义如何处理各种中断的关键数据结构。程序在此阶段初始化 IDT，并添加了处理器异常、定时器中断、系统调用和键盘中断的处理函数。
+    \item \textbf{初始化可编程中断控制器（PIC）}：可编程中断控制器（PIC）负责管理硬件中断，这一步骤将 PIC 初始化，以便能够接收和处理外部设备的中断请求。
+    \item \textbf{初始化 FAT16 文件系统}：如果磁盘被检测为启用状态，此时将加载 FAT16 文件系统。这包括加载文件系统的头部、表格和条目，确保系统可以读写文件。
+    \item \textbf{初始化多任务处理}：为支持多任务处理，此阶段初始化任务管理器，设置任务调度和管理机制。
+    \item \textbf{初始化 Shell}：最后，系统初始化一个简单的 Shell 环境，允许用户通过命令行与操作系统交互。初始化完毕后，开启中断处理（通过 sti 指令），让操作系统开始响应中断。
+\end{enumerate}
+
+这些步骤共同构成了 MinmusOS 的核心启动逻辑，是系统能够顺利运行和管理硬件及应用程序的基础。通过这个主启动程序，MinmusOS 能够配置必要的环境并提供一个稳定的运行时环境。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+#[no_mangle]
+#[link_section = ".start"]
+pub extern "C" fn _start() -> ! {
+    unsafe {
+        PRINTER.prints("[INFO] Initializing Stack...\n");
+        asm!("mov esp, {}", in(reg) STACK_START);
+
+        PRINTER.prints("[INFO] Initializing Paging...\n");
+        PAGING.identity();
+        PAGING.enable();
+        asm!("xchg bx, bx");
+
+        PRINTER.prints("[INFO] Loading Interrupt Descriptor Table...\n");
+        IDT.init();
+        IDT.add_exceptions();
+        IDT.add(
+            interrupts::timer::TIMER_INT as usize,
+            interrupts::timer::timer as u32,
+        );
+        IDT.add(
+            syscalls::handler::SYSCALL_INT as usize,
+            syscalls::handler::syscall as u32,
+        );
+        IDT.add(
+            drivers::keyboard::KEYBOARD_INT as usize,
+            drivers::keyboard::keyboard as u32,
+        );
+        IDT.load();
+
+        PRINTER.prints("[INFO] Initializing Programmable Interrupt Controllers...\n");
+        PICS.init();
+
+        PRINTER.prints("[INFO] Initializing FAT16 File System...\n");
+        DISK.check();
+        if DISK.enabled {
+            let fat = FAT.acquire_mut();
+            fat.load_header();
+            fat.load_table();
+            fat.load_entries();
+            FAT.free();
+        }
+
+        PRINTER.prints("[INFO] Initializing Multitasking...\n");
+        TASK_MANAGER.init();
+
+        PRINTER.prints("[INFO] Initializing Shell...\n");
+        print_info();
+        SHELL.init();
+        asm!("xchg bx, bx");
+        asm!("sti");
+
+        loop {}
+    }
+}
+    \end{minted}
+    \caption{\_start内核启动函数}\label{lst:KernelBootFunction}
+\end{listing}
+
+\subsubsection{PANIC处理器}
+
+在许多编程语言和操作系统中，尤其是 Rust，panic 指的是程序运行中遇到无法处理的错误或无法恢复的状态时的行为。这通常是由于程序逻辑错误、资源耗尽或不符合预期的操作导致的。
+
+Panic 通常意味着程序或系统必须停止执行当前任务。在 Rust 中，panic 可能导致线程崩溃或整个程序终止，除非有特定的捕获机制来处理这种情况。
+
+MinmusOS 通过一个自定义的 panic\_handler 函数（\cref{lst:PanicHandlerFunction}）来处理 panic。这个函数被标记为 \texttt{\#[panic\_handler]}，这是 Rust 操作系统开发中用来指定处理系统 panic 的函数。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+#[panic_handler]
+fn panic(info: &PanicInfo) -> ! {
+    unsafe { PRINTER.set_colors(COLOR_LIGHT_WHITE, COLOR_RED); PRINTER.clear(); }
+    lib::println!();
+    lib::println!("  ========== MinmusOS v1.0 ==========                            By Jishen Lin");
+    lib::println!();
+    lib::println!("  KERNEL PANIC!");
+    lib::println!();
+    lib::println!("  MinmusOS has encountered a panic and the system has been halted.");
+    lib::println!();
+    lib::println!();
+    lib::println!();
+    lib::println!();
+    lib::println!();
+    lib::println!();
+    lib::println!("  PANIC DESCRIPTION:");
+    lib::println!();
+    lib::println!("    {}", info.message());
+    lib::println!();
+    lib::println!();
+    lib::println!("  TECHNICAL INFORMATION:");
+    lib::println!();
+    lib::println!("    FILE : {}", info.location().unwrap().file());
+    lib::println!("    LINE : {}", info.location().unwrap().line());
+    lib::println!();
+    lib::println!();
+    lib::print!("  Please restart your computer. :)");
+    loop {}
+}
+    \end{minted}
+    \caption{PanicHandler函数}\label{lst:PanicHandlerFunction}
+\end{listing}
+
+\cref{fig:PanicHandlerPresentation}是 MinmusOS 在遇到内核 panic 时的用户界面展示。当系统遭遇严重错误并停止运行时，界面以红色背景和白色文字清晰地显示了错误的详细信息。它首先标明了“KERNEL PANIC!”，紧接着解释系统已经因错误停止，并具体说明了错误的性质——这里是一个数组越界问题。技术细节部分指出了错误发生的具体文件和行号，帮助开发者快速定位问题。页面底部友好地提示用户重新启动计算机，这是用户唯一的交互方式，因为系统已无法继续操作。整个设计旨在在紧急情况下提供清晰、直接的信息，确保用户知晓发生了什么并鼓励采取适当的响应措施。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/PanicHandlerPresentation.png}
+    \caption{PANIC处理器演示}
+    \label{fig:PanicHandlerPresentation}
+\end{figure}
+
 \subsection{链接器脚本（Linker Script）}
+
+链接器脚本（\cref{lst:KernelLinkerScript}）是用来指导链接器如何组织 MinmusOS 内核的不同部分（即各个段）到最终的可执行文件中。链接器脚本定义了内存布局，确保内核的不同数据和代码段按照预期的地址和顺序放置。
+
+\begin{listing}[htbp]
+    \begin{minted}{text}
+/* 配置程序入口点 */
+ENTRY(_start)
+
+/* 配置段的顺序和位置 */
+SECTIONS {
+    /* 配置内核加载的起始地址为 1MB */
+    . = 0x00100000;
+
+    /* 定义内核开始的位置 */
+    _kernel_start = .;
+
+    /* 定义启动段，包含启动代码的实际入口点 */
+    .start : {
+        *(.start)
+    }
+
+    /* 定义代码段，包含程序的机器代码 */
+    .text : {
+        *(.text .text.*)
+    }
+
+    /* 定义 BSS 段，包含程序中未初始化的数据 */
+    .bss : {
+        *(.bss .bss.*)
+    }
+
+    /* 定义只读数据段，包含常量等不应被程序修改的数据 */
+    .rodata : {
+        *(.rodata .rodata.*)
+    }
+
+    /* 定义数据段，包含已初始化的全局变量和静态变量 */
+    .data : {
+        *(.data .data.*)
+    }
+
+    /* 配置异常处理信息，用于支持运行时错误处理 */
+    .eh_frame : {
+        *(.eh_frame .eh_frame.*)
+    }
+    .eh_frame_hdr : {
+        *(.eh_frame_hdr .eh_frame_hdr.*)
+    }
+
+    /* 配置地址对齐与预留空间 */
+    . = _kernel_start + 0x00100000 - 2;
+
+    /* 在内存中设置一个结束标记，用于标识内核的结束 */
+    .end_marker :
+    {
+        SHORT(0xDEAD)
+    }
+}
+    \end{minted}
+    \caption{kernel/linker.ld}\label{lst:KernelLinkerScript}
+\end{listing}
+
+在 Rust 项目中，build.rs 文件充当构建脚本的角色，主要用于在项目编译前执行自定义的构建任务。构建脚本的实现与\cref{LinkerScript}相同，在此不再赘述。
+
+通过精确地控制各个内存段的位置和大小，这个脚本确保内核能够被正确地加载到预期的内存地址，并且所有的代码和数据都按预期方式进行组织。通过配置 .eh\_frame 和 .eh\_frame\_hdr，增强了程序的健壮性，使得在出现运行时错误时能够进行有效的异常处理。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/KernelBootPresentation.png}
+    \caption{内核启动演示}
+    \label{fig:KernelBootPresentation}
+\end{figure}
