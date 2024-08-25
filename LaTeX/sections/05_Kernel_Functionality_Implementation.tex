@@ -2944,8 +2944,6 @@ fn panic(info: &PanicInfo) -> ! {
     \caption{PanicHandler函数}\label{lst:PanicHandlerFunction}
 \end{listing}
 
-\cref{fig:PanicHandlerPresentation}是 MinmusOS 在遇到内核 panic 时的用户界面展示。当系统遭遇严重错误并停止运行时，界面以红色背景和白色文字清晰地显示了错误的详细信息。它首先标明了“KERNEL PANIC!”，紧接着解释系统已经因错误停止，并具体说明了错误的性质——这里是一个数组越界问题。技术细节部分指出了错误发生的具体文件和行号，帮助开发者快速定位问题。页面底部友好地提示用户重新启动计算机，这是用户唯一的交互方式，因为系统已无法继续操作。整个设计旨在在紧急情况下提供清晰、直接的信息，确保用户知晓发生了什么并鼓励采取适当的响应措施。
-
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.8\textwidth]{figures/PanicHandlerPresentation.png}
@@ -2953,9 +2951,13 @@ fn panic(info: &PanicInfo) -> ! {
     \label{fig:PanicHandlerPresentation}
 \end{figure}
 
+\cref{fig:PanicHandlerPresentation}是 MinmusOS 在遇到内核 panic 时的用户界面展示。当系统遭遇严重错误并停止运行时，界面以红色背景和白色文字清晰地显示了错误的详细信息。它首先标明了“KERNEL PANIC!”，紧接着解释系统已经因错误停止，并具体说明了错误的性质——这里是一个数组越界问题。技术细节部分指出了错误发生的具体文件和行号，帮助开发者快速定位问题。页面底部友好地提示用户重新启动计算机，这是用户唯一的交互方式，因为系统已无法继续操作。整个设计旨在在紧急情况下提供清晰、直接的信息，确保用户知晓发生了什么并鼓励采取适当的响应措施。
+
 \subsection{链接器脚本（Linker Script）}
 
 链接器脚本（\cref{lst:KernelLinkerScript}）是用来指导链接器如何组织 MinmusOS 内核的不同部分（即各个段）到最终的可执行文件中。链接器脚本定义了内存布局，确保内核的不同数据和代码段按照预期的地址和顺序放置。
+
+链接器脚本还对操作系统的性能和功能安全起到了关键作用。正确配置的链接器脚本能够确保程序的不同部分被放置在适合执行的内存区域，减少运行时的错误，提高系统的效率和响应速度。通过精确控制如 .text, .data, .bss, .rodata 等段的放置，链接器脚本直接影响了程序的加载和执行。例如，将代码和只读数据保持在紧密的内存区域可以优化访问速度和缓存利用率。
 
 \begin{listing}[htbp]
     \begin{minted}{text}
@@ -3019,6 +3021,8 @@ SECTIONS {
 在 Rust 项目中，build.rs 文件充当构建脚本的角色，主要用于在项目编译前执行自定义的构建任务。构建脚本的实现与\cref{LinkerScript}相同，在此不再赘述。
 
 通过精确地控制各个内存段的位置和大小，这个脚本确保内核能够被正确地加载到预期的内存地址，并且所有的代码和数据都按预期方式进行组织。通过配置 .eh\_frame 和 .eh\_frame\_hdr，增强了程序的健壮性，使得在出现运行时错误时能够进行有效的异常处理。
+
+至此我们完成了内核的加载与启动，如\cref{fig:KernelBootPresentation}。
 
 \begin{figure}[htbp]
     \centering
