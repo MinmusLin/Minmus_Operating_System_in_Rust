@@ -1,0 +1,10 @@
+[package]
+name = "kernel"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+
+[dependencies.lib]
+path = "../lib"

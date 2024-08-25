@@ -1,0 +1,5 @@
+[package]
+name = "lib"
+edition = "2021"
+
+[dependencies]
