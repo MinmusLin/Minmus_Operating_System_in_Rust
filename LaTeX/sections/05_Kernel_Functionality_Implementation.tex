@@ -1157,7 +1157,7 @@ TaskManager 是一个管理操作系统中所有任务的结构体（\cref{lst:T
 \begin{listing}[htbp]
     \begin{minted}{rust}
 pub struct TaskManager {
-    tasks: [Task; MAX_TASKS as usize],
+    pub(crate) tasks: [Task; MAX_TASKS as usize],
     task_count: i8,
     current_task: i8,
 }
@@ -1656,6 +1656,7 @@ impl Allocator {
         }
     }
 
+    #[allow(dead_code)]
     pub unsafe fn init(&self, heap_start: usize, heap_size: usize) {
         let block = Block {
             size: heap_size,
@@ -2306,7 +2307,7 @@ CPU时钟周期计数（CPU Ticks）是指在中央处理器（CPU）中进行�
 
 get\_cpu\_ticks() 函数（\cref{lst:GetCpuTicksMethod}）用于获取 CPU 的时钟周期计数，即 CPU Ticks，这是衡量处理器执行时间的一个基本单位。函数使用 x86 架构的 rdtsc 指令来读取 CPU 的时间戳计数器。在执行 rdtsc 指令时，时钟周期的计数被分为高位和低位存储。eax 寄存器存储低32位，而 edx 寄存器存储高32位。通过位操作将高位和低位组合成一个 64 位的整数。具体操作是将高位（high）左移32位，然后与低位（low）进行位或操作（|），这样就能得到一个完整的 64 位的时钟周期计数。
 
-获取的 CPU 时钟周期数可以用来精确测量代码执行的时间，是性能分析和优化中常用的一种方法。由于 rdtsc 指令获取的是从 CPU 启动到当前的总时钟周期数，它可以帮助开发者了解程序执行的具体时长和效率，从而进行更精确的性能调优。
+由于 rdtsc 指令获取的是从 CPU 启动到当前的总时钟周期数，可以用来精确测量代码执行的时间，这是性能分析和优化中常用的一种方法。
 
 \begin{listing}[htbp]
     \begin{minted}{rust}
@@ -2328,6 +2329,453 @@ fn get_cpu_ticks() -> u64 {
 \end{listing}
 
 \subsection{命令行解释器（Shell）}
+
+命令行解释器（Shell）是一个用户界面，用于向操作系统提供用户指令。用户可以通过键入命令来与系统交互，这些命令然后由 Shell 解释并传递给操作系统的内核执行。
+
+MinmusOS 提供了 20 条可以执行的命令（\cref{lst:HelpCommandPrompt}），见\cref{tab:AvailableCommands}。通过Help命令可以展示可用命令（\cref{fig:HelpCommandPresentation}）。
+
+\begin{longtable}[c]{@{}ll@{}}
+    \caption{可用命令}
+    \label{tab:AvailableCommands}             \\
+    \toprule
+    \textbf{命令}    & \textbf{描述}              \\ \midrule
+    \endfirsthead
+    \multicolumn{2}{r}{\textbf{续表~\thetable}} \\
+    \toprule
+    \textbf{命令}    & \textbf{描述}              \\ \midrule
+    \endhead
+    \hline
+    \multicolumn{2}{r}{续下页}
+    \endfoot
+    \endlastfoot
+    cal            & 显示当前月份的日历                \\
+    cat <filename> & 显示文件的内容                  \\
+    clear          & 清除终端屏幕                   \\
+    color          & 显示VGA文本模式颜色              \\
+    date           & 显示当前日期和时间                \\
+    echo <text>    & 输出文本                     \\
+    exit           & 退出当前会话                   \\
+    help           & 显示可用命令                   \\
+    hostname       & 显示主机名                    \\
+    kill <pid>     & 终止指定进程                   \\
+    ls             & 列出根目录条目                  \\
+    ps             & 列出运行中的任务                 \\
+    pwd            & 显示当前目录                   \\
+    reboot         & 重启系统                     \\
+    run <appname>  & 运行应用程序                   \\
+    shutdown       & 关闭系统                     \\
+    ticks          & 显示当前CPU时钟周期计数            \\
+    timestamp      & 显示当前UNIX时间戳              \\
+    uname          & 显示系统信息                   \\
+    whoami         & 显示当前用户                   \\ \bottomrule
+\end{longtable}
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+const HELP: &'static str = "Available commands:
+cal            - Shows current month's calendar
+cat <filename> - Shows content of a file
+clear          - Clears terminal screen
+color          - Shows VGA text mode color
+date           - Shows current datetime
+echo <text>    - Outputs text
+exit           - Exits current session
+help           - Shows available commands
+hostname       - Shows hostname
+kill <pid>     - Terminates specified process
+ls             - Lists root directory entries
+ps             - Lists running tasks
+pwd            - Shows current directory
+reboot         - Reboot system
+run <appname>  - Runs an application
+shutdown       - Shutdowns system
+ticks          - Shows current CPU ticks
+timestamp      - Shows current timestamp
+uname          - Shows system information
+whoami         - Shows current user";
+    \end{minted}
+    \caption{Help命令提示}\label{lst:HelpCommandPrompt}
+\end{listing}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/HelpCommandPresentation.png}
+    \caption{Help命令演示}
+    \label{fig:HelpCommandPresentation}
+\end{figure}
+
+\subsubsection{Shell 数据结构}
+
+Shell 结构（\cref{lst:ShellDataStructure}）定义了操作系统的命令行界面，包含三个成员：buffer（一个256字符的数组，用于存储用户输入的命令行文本）、arg（一个11字符的数组，专门用于解析命令参数）、和 cursor（一个 usize 类型，记录当前用户输入的位置）。这个结构体提供了基础的文本输入存储和命令解析功能，使得操作系统能够接收、处理和响应用户的命令操作。
+
+Shell 的实现需要定义三个常量（\cref{lst:ShellConstantDefinitions}），用于操作系统中应用程序的加载和执行管理。它们的作用如下：
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+const APP_TARGET: u32 = 0x00A00000;
+const APP_SIZE: u32 = 0x00010000;
+const APP_SIGNATURE: u32 = 0xB16B00B5;
+    \end{minted}
+    \caption{Shell常量定义}\label{lst:ShellConstantDefinitions}
+\end{listing}
+
+\begin{enumerate}
+    \item \texttt{APP\_TARGET}：表示应用程序在内存中的目标加载地址。操作系统在加载应用程序时，会将其放置在这个内存地址开始的位置。
+    \item \texttt{APP\_SIZE}：表示每个应用程序的大小上限（64KB）。这个大小用于划分内存区域，以确保每个应用程序在独立的内存空间中运行，避免相互干扰。
+    \item \texttt{APP\_SIGNATURE}：这是一个标识符，用于验证加载的文件是否为有效的可执行文件。操作系统在加载应用程序后，会检查这个签名，以确认该文件确实是一个可以执行的应用程序。
+\end{enumerate}
+
+SHELL 是一个可变的静态变量（\cref{lst:ShellStaticVariable}），用于全局管理操作系统的命令行界面（Shell）的状态。SHELL 使用了 mut 关键字，表示该静态变量是可变的。这意味着操作系统可以在运行时动态地更新 SHELL 的状态，例如响应用户输入或执行命令时。SHELL 作为一个全局的 Shell 实例，使得操作系统中的各个模块可以通过访问这个变量来控制和管理命令行界面。它在整个系统中保持单一实例，以便统一管理 Shell 的行为和状态。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub static mut SHELL: Shell = Shell {
+    buffer: [0 as char; 256],
+    arg: [0 as char; 11],
+    cursor: 0,
+};
+    \end{minted}
+    \caption{SHELL静态变量}\label{lst:ShellStaticVariable}
+\end{listing}
+
+Shell 实现了如下方法：
+
+\begin{enumerate}
+    \item \textbf{init方法}：init 方法用于初始化 Shell 的状态。它将 buffer 清空为全零，并将 cursor 重置为 0，然后通过 PRINTER 设置命令提示符的颜色和格式。具体来说，它设置提示符为 “root@MinmusOS:/\$”，使用不同的颜色（如绿色、白色、青色等）分别标识用户名、主机名、目录和提示符符号。这个方法确保每次命令输入后，Shell 界面都会重新初始化并显示提示符，等待用户输入新的命令。
+    \item \textbf{add方法}：add 方法将用户输入的字符 c 添加到 buffer 的当前位置（由 cursor 指定），然后将 cursor 向前移动一位。它同时使用 \texttt{lib::print!} 输出该字符，显示在屏幕上。这个方法用于逐个收集用户输入的命令字符，并在输入时即时显示。
+    \item \textbf{backspace方法}：backspace 方法用于处理用户按下退格键的情况。它会将 cursor 位置向后移动一位，并将该位置的字符从 buffer 中删除（即设置为 0 as char），同时调用 \texttt{PRINTER.delete()} 从屏幕上移除最后一个字符。这个方法确保用户可以删除输入的字符。
+    \item \textbf{enter方法}：enter 方法在用户按下回车键时调用。它首先调用 \texttt{PRINTER.new\_line()} 在屏幕上换行，然后调用 \texttt{interpret()} 方法解析和执行当前 buffer 中的命令，最后再次调用 \texttt{init()} 方法重置 Shell 状态并显示新的提示符，准备接收下一条命令。
+    \item \textbf{interpret方法}：interpret 方法负责解析并执行 buffer 中的命令。它通过检查 buffer 是否匹配特定的命令来决定执行相应的操作（如 cal，cat，ls，run 等）。如果命令匹配，调用对应的函数执行命令逻辑；如果命令未匹配，显示“命令未找到”的错误信息。这个方法是 Shell 的核心，处理和响应用户输入的命令。
+    \item \textbf{cat方法}：cat 方法用于显示文件内容。它从 buffer 中提取文件名参数，并调用 FAT 文件系统驱动搜索文件。如果文件存在，读取文件内容并显示在屏幕上；如果文件不存在，显示“文件未找到”的错误信息。这个方法通过操作文件系统，使得用户可以查看文本文件的内容。关于cat命令的实现详见\cref{sec:CatCommand}。
+    \item \textbf{run方法}：run 方法用于运行指定的应用程序。它从 buffer 中提取应用程序名称，并调用 FAT 文件系统驱动查找应用程序文件。如果文件存在且签名正确，将其加载到内存的特定位置，并将其作为任务添加到任务管理器中执行。如果文件签名不正确，显示“该文件不是有效的可执行文件”的错误信息；如果文件不存在，显示“应用程序未找到”的错误信息。这个方法实现了操作系统中应用程序的加载与执行。关于run命令的实现详见\cref{sec:RunCommand}。
+    \item \textbf{is\_command方法}：is\_command 方法用于判断 buffer 中的内容是否与指定的命令字符串匹配（大小写不敏感）。它逐字符比较 buffer 和 command，如果匹配且 buffer 中命令后的字符是空格或终止符，则返回 true；否则返回 false。这个方法用于在 interpret 方法中识别用户输入的命令，并决定执行相应的操作。
+\end{enumerate}
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub struct Shell {
+    buffer: [char; 256],
+    arg: [char; 11],
+    cursor: usize,
+}
+
+impl Shell {
+    pub fn init(&mut self) { ... }
+
+    pub fn add(&mut self, c: char) {
+        self.buffer[self.cursor] = c;
+        self.cursor += 1;
+        lib::print!("{}", c);
+    }
+
+    pub fn backspace(&mut self) {
+        if self.cursor > 0 {
+            unsafe {
+                PRINTER.delete();
+            }
+            self.cursor -= 1;
+            self.buffer[self.cursor] = 0 as char;
+        }
+    }
+
+    pub fn enter(&mut self) {
+        unsafe {
+            PRINTER.new_line();
+        }
+        self.interpret();
+        self.init();
+    }
+
+    #[allow(unused_unsafe)]
+    fn interpret(&mut self) { ... }
+
+    unsafe fn cat(&mut self, b: &[char]) { ... }
+
+    unsafe fn run(&mut self, b: &[char]) { ... }
+
+    fn is_command(&self, command: &str) -> bool {
+        let command_len: usize = command.len();
+        for (i, command_char) in command.chars().enumerate() {
+            let buffer_char: char = self.buffer[i].to_ascii_lowercase();
+            if buffer_char == '\0' || buffer_char != command_char.to_ascii_lowercase() {
+                return false;
+            }
+        }
+        self.buffer[command_len].to_ascii_lowercase() == ' ' || self.buffer[command_len] == '\0'
+    }
+}
+    \end{minted}
+    \caption{\texttt{Shell}数据结构}\label{lst:ShellDataStructure}
+\end{listing}
+
+\subsubsection{cal 命令}
+
+kernel/src/shell/cal.rs 实现了 cal 命令。cal 命令的实现分为以下几个步骤：
+
+\begin{enumerate}
+    \item \textbf{获取当前日期信息}：在 calendar 函数的开头，通过调用 Time::init() 获取当前时间的实例，然后分别提取当前的年、月和日。这个时间信息是接下来生成日历的基础。
+    \item \textbf{确定月份标题}：使用 match 表达式根据 month 值确定月份的名称，如“January”、“February”等。然后将月份名称与年份一起打印在日历的顶部，作为日历的标题。
+    \item \textbf{计算月份的第一天}：使用 Zeller's Congruence 算法（\cref{lst:ZellerCongruenceAlgorithm}）计算出当月第一天是星期几。这一步得到一个从 0 到 6 的数值，表示星期一到星期日。这是日历对齐的关键，用于决定该月的日期从星期几开始显示。
+    \item \textbf{确定当月的天数}：通过 match 表达式，根据月份值确定当月的天数。如果是二月，还需判断该年是否为闰年，从而决定二月是 28 天还是 29 天。
+    \item \textbf{生成和显示日历}：首先，根据计算出的 first\_day\_of\_month 在日历的第一行前打印适当数量的空格，然后逐日打印该月的日期。打印过程中，如果当前日期正好是当天，则会高亮显示（将日期文字设为黄色）。每当日期跨过一个星期时，换行继续打印，直到打印完当月所有日期。
+    \item \textbf{最终输出}：日历打印完成后，通过调用 \texttt{lib::println!() }确保日历输出的最后一行与后续输出之间有一个空行隔开。
+\end{enumerate}
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+let first_day_of_month: usize = {
+    let (y, m): (i32, u8) = if month < 3 { (year as i32 - 1, month + 12) } else { (year as i32, month) };
+    let k: i32 = y % 100;
+    let j: i32 = y / 100;
+    let h: i32 = (1 + (13 * (m as i32 + 1)) / 5 + k + k / 4 + j / 4 + 5 * j) % 7;
+    ((h + 5) % 7) as usize
+};
+    \end{minted}
+    \caption{Zeller's Congruence 算法}\label{lst:ZellerCongruenceAlgorithm}
+\end{listing}
+
+\subsubsection{cat <filename> 命令}\label{sec:CatCommand}
+
+\cref{lst:CatMethod}实现了cat命令：
+
+\begin{enumerate}
+    \item \textbf{解析命令参数}：当用户输入 cat <filename> 时，buffer 中会包含命令和文件名。cat 函数首先需要从 buffer 中提取文件名。它通过定位文件名的起始和结束位置，确保能够正确解析用户输入的文件名。如果文件名解析失败（例如没有提供文件名或文件名格式不正确），函数会显示用法提示“Usage: cat <filename>”并返回。
+    \item \textbf{设置文件名参数}：将提取的文件名字符逐个复制到 Shell 结构体的 arg 数组中，确保文件名被正确存储。超过 arg 数组长度的部分会被截断，同时在未使用的部分填充0以确保字符串正确结束。
+    \item \textbf{查找文件}：cat 函数通过 \texttt{FAT.acquire()} 获取当前使用的 FAT 文件系统驱动，然后调用 texttt{fat.search\_file(\&self.arg)} 在文件系统中查找与 arg 中指定的文件名匹配的文件条目 Entry。如果没有找到对应的文件，会显示错误信息“File not found!”，并结束命令执行。
+    \item \textbf{读取和显示文件内容}：如果找到文件，cat 函数会将文件内容读取到缓冲区并打印在屏幕上。通过调用 \texttt{fat.read\_file\_to\_buffer(entry)}，文件内容会被读取到文件系统的缓冲区 \texttt{fat.buffer} 中，然后逐个字符地打印出来，直到文件结束。
+    \item \textbf{释放文件系统驱动}：在操作结束后，cat 函数调用 \texttt{FAT.free()} 释放文件系统驱动，使其可以被其他操作使用，从而确保系统资源的合理管理。
+    \item \textbf{结束处理}：最后，cat 函数调用 \texttt{lib::println!()} 输出一个空行，以保持命令行界面的整洁，标志命令执行的结束。
+\end{enumerate}
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+unsafe fn cat(&mut self, b: &[char]) {
+    ...
+    let fat: &FatDriver = FAT.acquire();
+    let entry: &Entry = fat.search_file(&self.arg);
+    if entry.name[0] != 0 {
+        fat.read_file_to_buffer(entry);
+        for c in fat.buffer {
+            if c != 0 {
+                lib::print!("{}", c as char);
+            }
+        }
+        lib::println!();
+    } else {
+        PRINTER.set_colors(COLOR_LIGHT_RED, COLOR_BLACK);
+        lib::println!("File not found!");
+        PRINTER.reset_colors();
+    }
+    FAT.free();
+}
+    \end{minted}
+    \caption{cat方法}\label{lst:CatMethod}
+\end{listing}
+
+\subsubsection{clear 命令}
+
+clear 命令的实现非常简单，当用户输入 clear 命令时，程序通过 \texttt{is\_command("clear")} 检查用户输入的命令是否为 clear。如果匹配，程序调用 \texttt{PRINTER.clear()} 方法，该方法负责清空终端屏幕内容，从而实现屏幕的清除效果。整个过程通过直接调用打印系统的清除功能，确保命令行界面恢复到一个干净的状态。
+
+\subsubsection{color 命令}
+
+color 命令的实现通过遍历前景色（fg）和背景色（bg）的所有可能组合（共16种），并使用 \texttt{PRINTER.set\_colors(fg, bg)} 设置不同的颜色组合。每种组合都在屏幕上显示其对应的颜色代码（例如“01”表示前景色为1，背景色为0），以可视化方式展示所有可能的颜色配置。最后，调用 \texttt{PRINTER.reset\_colors()} 恢复默认颜色设置。这个命令主要用于展示终端支持的颜色选项和效果。
+
+\subsubsection{date 命令}
+
+date 命令的实现通过调用 \texttt{Time::init()} 获取当前系统时间，并提取年、月、日、小时、分钟和秒等时间信息。然后使用 \texttt{lib::println!} 以 YYYY-MM-DD HH:MM:SS UTC 的格式将时间打印到终端上，显示当前的系统日期和时间。整个过程通过简单的时间提取和格式化输出，实现了显示当前日期和时间的功能。
+
+\subsubsection{echo <text> 命令}
+
+echo 命令的实现（\cref{lst:EchoMethod}）用于在终端中输出用户输入的文本。函数首先跳过命令本身（echo 及其后的空格），然后逐字符遍历用户输入的文本字符。如果遇到空格字符且前一个字符也是空格，则跳过该空格；否则，将字符输出到终端。这样做的目的是避免输出连续的多个空格。在所有字符处理完成后，调用 \texttt{lib::println!()} 输出换行符，确保命令执行后的光标位置正确。通过这种方式，echo 命令可以将用户输入的文本整齐地显示在终端上。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub fn echo(b: &[char]) {
+    let mut last_was_space = true;
+    for &ch in b.iter().skip(5) {
+        if ch == '\0' {
+            break;
+        }
+        if ch == ' ' {
+            if !last_was_space {
+                lib::print!(" ");
+                last_was_space = true;
+            }
+        } else {
+            lib::print!("{}", ch);
+            last_was_space = false;
+        }
+    }
+    lib::println!();
+}
+    \end{minted}
+    \caption{echo方法}\label{lst:EchoMethod}
+\end{listing}
+
+\subsubsection{exit 命令}
+
+exit 命令用于退出当前会话。实现时，通过使用内联汇编指令 \texttt{core::arch::asm!}，将特定值输出到 I/O 端口，以触发系统退出或关机。这是直接通过硬件端口操作实现退出功能。
+
+\subsubsection{help 命令}
+
+help 命令用于显示系统中可用的所有命令及其简要描述。实现时，直接通过 \texttt{lib::println!} 输出预先定义好的帮助文本 HELP，让用户查看命令列表和使用说明。
+
+\subsubsection{hostname 命令}
+
+hostname 命令用于显示当前操作系统的主机名。实现时，通过 \texttt{lib::println!("MinmusOS")} 输出主机名为“MinmusOS”，让用户了解当前系统的标识。
+
+\subsubsection{kill <pid> 命令}
+
+\cref{lst:KillMethod}实现了kill命令：
+
+\begin{enumerate}
+    \item \textbf{解析命令参数}：当用户输入 kill <pid> 命令时，首先需要从输入的命令行中提取 PID 参数。函数从 b 中跳过命令本身（即 kill 及其后面的空格字符）来定位 PID 的起始位置 start。如果 PID 的起始位置不合法（即没有提供有效的 PID），函数会立即返回，并显示“Usage: kill <pid>”提示用户正确的使用方法。
+    \item \textbf{验证和解析 PID}：一旦 PID 的起始位置确定，函数继续向后寻找 PID 的结束位置。通过再次遍历 b，寻找第一个空格或空字符来确定 PID 的结束位置 end。在提取出 PID 的字符序列后，函数将逐字符检查并将其转换为整数 task\_id。在这个过程中，如果发现任何非数字字符，函数会判定 PID 输入无效，并立即返回，同时显示“Please enter a valid PID (1-31)”的错误信息。
+    \item \textbf{验证 PID 范围}：在成功解析并转换 PID 为整数后，函数会进一步检查该 PID 是否在合法范围内，即是否在 1 到 MAX\_TASKS 之间。如果 PID 超出了这个范围，函数会显示错误提示“Please enter a valid PID (1-31)”，并结束操作。这一检查确保了用户输入的 PID 是系统内一个有效的任务标识符。
+    \item \textbf{移除任务}：kill 命令会调用 \texttt{TASK\_MANAGER.remove\_task(task\_id)} 来终止系统中对应的任务，如果 PID 验证通过且在合法范围内。TASK\_MANAGER 是一个全局的任务管理器，负责管理所有运行中的任务。通过调用 remove\_task 方法，系统会根据用户提供的 PID 查找到对应的任务，并将其从任务队列中移除。移除成功后，函数会使用 \texttt{lib::println!("Task (PID \{\}) has been removed.", task\_id)} 输出确认信息，告知用户任务已成功终止。
+    \item \textbf{输出与提示}：在整个命令执行过程中，kill 函数使用 PRINTER 进行文本输出。PRINTER 负责控制终端的显示，包括设置文本颜色和输出内容。为了区分正常操作和错误信息，kill 命令在输出错误信息时，会将文本颜色设置为 COLOR\_LIGHT\_RED，而在输出提示信息时，会将颜色设置为 COLOR\_LIGHT\_MAGENTA。在所有操作完成后，函数会调用 \texttt{PRINTER.reset\_colors()} 将颜色恢复到默认状态。通过这种方式，kill 命令确保了用户在使用过程中可以清晰地接收到正确的反馈信息，增强了用户体验的友好性和操作的安全性。
+\end{enumerate}
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub fn kill(b: &[char]) {
+    ...
+    for i in start + 5..end {
+        if b[i].is_digit(10) { task_id = task_id * 10 + (b[i] as u8 - b'0') as usize; }
+        else { is_valid_id = false; break; }
+    }
+    if is_valid_id {
+        if task_id > 0 && task_id < MAX_TASKS as usize {
+            unsafe {
+                if !TASK_MANAGER.tasks[task_id].running {
+                    PRINTER.set_colors(COLOR_LIGHT_RED, COLOR_BLACK);
+                    lib::println!("Task with PID {} not found!", task_id);
+                    PRINTER.reset_colors();
+                    return;
+                }
+                TASK_MANAGER.remove_task(task_id);
+                lib::println!("Task (PID {}) has been removed.", task_id);
+            }
+        } else {
+            unsafe { PRINTER.set_colors(COLOR_LIGHT_RED, COLOR_BLACK); }
+            lib::println!("Please enter a valid PID (1-31).");
+            unsafe { PRINTER.reset_colors(); }
+        }
+    } else {
+        unsafe { PRINTER.set_colors(COLOR_LIGHT_RED, COLOR_BLACK); }
+        lib::println!("Please enter a valid PID (1-31).");
+        unsafe { PRINTER.reset_colors(); }
+    }
+}
+    \end{minted}
+    \caption{kill方法}\label{lst:KillMethod}
+\end{listing}
+
+\subsubsection{ls 命令}
+
+ls 命令用于列出根目录中的所有文件和目录项。实现时，通过调用 \texttt{FAT.acquire()} 获取文件系统驱动，并使用 \texttt{list\_entries()} 方法列出根目录中的所有条目。操作完成后，调用 \texttt{FAT.free()} 释放文件系统资源，确保系统资源的有效管理。
+
+\subsubsection{ps 命令}
+
+ps 命令用于显示当前系统中所有正在运行的任务列表。实现时，调用全局任务管理器 TASK\_MANAGER 的 \texttt{list\_tasks()} 方法，该方法会遍历系统中的所有任务并将其状态输出到终端，帮助用户查看系统中正在执行的任务。
+
+\subsubsection{pwd 命令}
+
+pwd 命令用于显示当前工作目录。在这个实现中，命令直接输出根目录“/”，表明当前工作目录为系统的根目录。由于此 Shell 环境中没有复杂的目录结构，pwd 命令只返回根目录。
+
+\subsubsection{reboot 命令}
+
+reboot 命令用于重新启动系统。实现时，通过内联汇编 \texttt{core::arch::asm!} 发送特定命令到系统的 I/O 端口，触发硬件重启。这个直接的硬件操作确保了系统能够立即重新启动。
+
+\subsubsection{run <appname> 命令}\label{sec:RunCommand}
+
+\cref{lst:RunMethod}实现了run命令：
+
+\begin{enumerate}
+    \item \textbf{解析应用程序名称}：run 方法首先从用户输入的命令行中提取应用程序的名称。通过跳过 run 及其后的空格字符，定位应用程序名称的起始位置 start。如果没有提供有效的应用程序名称，或者名称格式不正确，方法会立即返回并显示用法提示“Usage: run <appname>”。
+    \item \textbf{设置应用程序名称参数}：在成功提取到应用程序名称后，方法将其逐字符复制到 Shell 结构体的 arg 数组中，并确保名称字符串以 0 结束。如果应用程序名称超出 arg 数组的长度，则会被截断。
+    \item \textbf{查找应用程序文件}：run 方法接下来会在文件系统中查找指定名称的应用程序文件。首先通过 \texttt{FAT.acquire()} 获取 FAT 文件系统驱动，然后调用 \texttt{fat.search\_file(\&self.arg)} 在文件系统中搜索与 arg 数组中存储的名称匹配的文件条目。如果找不到对应的文件，方法会显示“Application not found!”的错误信息，并结束操作。
+    \item \textbf{加载并执行应用程序}：如果找到应用程序文件，方法会尝试将其加载到内存中并执行。首先，方法通过 \texttt{TASK\_MANAGER.get\_free\_slot()} 获取一个空闲的任务槽位，并计算应用程序的加载目标地址 target。然后，设置分页表 TABLES[8] 并调用 \texttt{PAGING.set\_table}，将应用程序加载到指定的内存位置。如果应用程序文件包含有效的签名（与 APP\_SIGNATURE 匹配），run 方法会通过 \texttt{TASK\_MANAGER.add\_task(target + 4)} 将其作为一个新任务添加到任务管理器中执行。如果签名不匹配，方法会显示“This file is not a valid executable!”的错误信息。
+    \item \textbf{清理与释放资源}：最后，无论运行应用程序是否成功，方法都会调用 \texttt{FAT.free()} 释放文件系统驱动，以确保资源的合理使用和系统的稳定性。
+\end{enumerate}
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+unsafe fn run(&mut self, b: &[char]) {
+    let start: usize = b.iter().skip(4).position(|&c| c != ' ' && c != '\0').unwrap_or(b.len());
+    if start + 4 >= b.len() {
+        unsafe {
+            PRINTER.set_colors(COLOR_LIGHT_MAGENTA, COLOR_BLACK);
+        }
+        lib::println!("Usage: run <appname>");
+        unsafe {
+            PRINTER.reset_colors();
+        }
+        return;
+    }
+    let end: usize = b.iter().skip(start + 4).position(|&c| c == ' ' || c == '\0').map_or(b.len(), |p| p + start + 4);
+    if end <= start + 4 {
+        unsafe {
+            PRINTER.set_colors(COLOR_LIGHT_MAGENTA, COLOR_BLACK);
+        }
+        lib::println!("Usage: run <appname>");
+        unsafe {
+            PRINTER.reset_colors();
+        }
+        return;
+    }
+    let mut j: usize = 0;
+    for i in start + 4..end {
+        self.arg[j] = b[i];
+        j += 1;
+    }
+    for i in j..self.arg.len() {
+        self.arg[i] = '\0';
+    }
+    let fat: &FatDriver = FAT.acquire();
+    let entry: &Entry = fat.search_file(&self.arg);
+    if entry.name[0] != 0 {
+        let target: u32 = APP_TARGET + (TASK_MANAGER.get_free_slot() as u32 * APP_SIZE);
+        TABLES[8].set(target);
+        PAGING.set_table(8, &TABLES[8]);
+        fat.read_file_to_target(&entry, target as *mut u32);
+        if *(target as *mut u32) == APP_SIGNATURE {
+            TASK_MANAGER.add_task(target + 4);
+        } else {
+            unsafe { PRINTER.set_colors(COLOR_LIGHT_RED, COLOR_BLACK); }
+            lib::println!("This file is not a valid executable!");
+            unsafe { PRINTER.reset_colors(); }
+        }
+    } else {
+        PRINTER.set_colors(COLOR_LIGHT_RED, COLOR_BLACK);
+        lib::println!("Application not found!");
+        PRINTER.reset_colors();
+    }
+    FAT.free();
+}
+    \end{minted}
+    \caption{run方法}\label{lst:RunMethod}
+\end{listing}
+
+\subsubsection{shutdown 命令}
+
+shutdown 命令用于关闭系统。实现时，通过内联汇编 \texttt{core::arch::asm!}，将特定的值输出到 I/O 端口，触发系统的关机操作。这是一个直接的硬件控制命令，用于立即停止系统的运行。
+
+\subsubsection{ticks 命令}
+
+ticks 命令用于显示自系统启动以来的CPU时钟滴答数。实现时，通过调用 \texttt{Time::init()} 初始化时间模块，然后使用 \texttt{get\_ticks()} 方法获取当前的滴答数，并通过 \texttt{lib::println!} 将其输出到终端，供用户查看。
+
+\subsubsection{timestamp 命令}
+
+timestamp 命令用于显示当前的时间戳。实现时，同样调用 \texttt{Time::init()} 初始化时间模块，并使用 \texttt{get\_timestamp()} 方法获取当前的 Unix 时间戳，表示自1970年1月1日以来的秒数。然后将其通过 \texttt{lib::println!} 输出，方便用户查看当前时间戳。
+
+\subsubsection{uname 命令}
+
+uname 命令用于显示操作系统的名称和版本信息。实现时，直接通过 \texttt{lib::println!} 输出操作系统的名称和版本信息，例如“MinmusOS v1.0 IA-32 x86”，以告知用户当前运行的操作系统的基本信息。
+
+\subsubsection{whoami 命令}
+
+whoami 命令用于显示当前用户的身份。实现时，通过 \texttt{lib::println!("root")} 直接输出用户名称“root”，表明当前操作系统的用户身份为超级用户。
 
 \subsection{主启动程序（Main Boot Program）}
 
