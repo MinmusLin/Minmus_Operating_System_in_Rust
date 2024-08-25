@@ -1,8 +1,0 @@
-[package]
-name = "hanoi"
-edition = "2021"
-
-[dependencies]
-
-[dependencies.lib]
-path = "../../lib"
