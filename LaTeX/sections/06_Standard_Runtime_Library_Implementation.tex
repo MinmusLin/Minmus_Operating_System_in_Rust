@@ -1,3 +1,728 @@
 \section{标准运行库实现}\label{sec:StandardRuntimeLibraryImplementation}
 
-在本节（\cref{sec:StandardRuntimeLibraryImplementation}）中，
+在本节（\cref{sec:StandardRuntimeLibraryImplementation}）中，笔者将详细介绍 MinmusOS 的标准运行库，这些库为操作系统提供了核心的运行支持和基础功能实现。标准运行库是操作系统架构中不可或缺的一部分，它们提供了从基本的数据处理到复杂的系统交互所需的所有基础工具和功能。通过对这些库的实现，MinmusOS 能够提供稳定、高效的环境，以支持各种应用和系统级的操作。
+
+笔者将依次探讨六个核心库的功能和实现方式，包括 math 库、mutex 库、print 库、rand 库、sort 库和 string 库。这些库覆盖了从数学计算到字符串处理、从生成随机数到数据排序等多个方面，是实现操作系统功能的基石。通过\cref{sec:StandardRuntimeLibraryImplementation}开发者将能更深入地理解如何利用这些基础库来构建和优化自己的操作系统内核。
+
+\subsection{标准运行库概述}
+
+标准运行库（Standard Runtime Library），通常指的是提供编程语言核心运行支持的库，这些库包含了编程语言运行所必需的基本函数和数据结构。这些库的函数可以包括输入输出处理、内存管理、字符串操作、数学计算等基础功能。
+
+标准库提供了编译和在操作系统上运行程序所需的所有实现。它实现了各种有用的算法和数据结构，但最重要的是，它提供了系统调用的封装，使程序员可以更轻松地与操作系统交互，而不必直接调用系统调用。
+
+MinmusOS 提供了六个标准运行库的实现：
+
+\begin{enumerate}
+    \item \textbf{math库}：提供数学计算的函数和算法，包括基本的算术运算、复杂的数学函数（如三角函数、对数函数等）和数值分析方法。这个库可以用于执行各种数学运算，支持操作系统内核及其它模块进行数学相关的处理。
+    \item \textbf{mutex库}：实现互斥锁（Mutex）的功能，用于控制对共享资源的访问。这是多线程或多进程环境中同步和防止数据竞争的关键工具。互斥锁可以帮助确保当一个线程或进程在使用一个共享资源时，其他线程或进程必须等待，直到资源被释放。
+    \item \textbf{print库}：提供打印宏的实现，可以用于打印到控制台、日志文件或其他输出设备的功能，用于调试和追踪系统运行时的状态和错误。
+    \item \textbf{rand库}：随机数生成是计算机科学中的一个基本需求，尤其在操作系统的设计中扮演着重要角色。MinmusOS 中的 rand 库不仅支持基本的随机数生成，还包括多种伪随机数生成算法，如线性同余生成器（LCG）、梅森旋转（Mersenne Twister）等。这些算法能够生成高质量的随机序列，用于多种系统级功能，包括但不限于内存分配的随机化、进程调度的公平性保证、以及增强安全性的密码学应用。
+    \item \textbf{sort库}：实现各种排序算法的库。这个模块可以对数据进行排序，支持基本的排序算法如冒泡排序、快速排序、归并排序等。排序功能常用于数据处理和优化存储或检索。
+    \item \textbf{string库}：提供字符串处理的函数和算法。这个库包括字符串的搜索、比较、拼接等常见操作。字符串处理是大多数操作系统功能的基础，用于文件系统、用户界面和网络通信等方面。
+\end{enumerate}
+
+\subsection{math库}
+
+MinmusOS的math库提供了64个数学函数（\cref{tab:MathLibraryFunctions}），覆盖了广泛的数学运算和计算需求。它们包括基本的算术运算（加、减、乘、除），比较函数（最大值和最小值），三角函数（正弦、余弦、正切等），反三角函数，以及双曲函数。此外，还有对数、指数、平方根和立方根等高级数学函数。库中也包括了一些特殊函数如伽马函数、贝塞尔函数和误差函数。向量运算如加法、减法、点积和叉积也被实现。此外，库中还提供了统计函数，用于计算数列的总和、乘积、平均值、中位数、众数、范围等统计指标。复数运算也得到了支持，包括复数的加法、减法、乘法和除法。整体而言，这个数学库为操作系统提供了一套全面而强大的数学计算工具。
+
+\begin{longtable}[c]{@{}llll@{}}
+    \caption{math库函数}
+    \label{tab:MathLibraryFunctions}                                                                           \\
+    \toprule
+    \textbf{函数名}       & \textbf{输入}                                            & \textbf{输出} & \textbf{功能}    \\ \midrule
+    \endfirsthead
+    \multicolumn{4}{r}{\textbf{续表~\thetable}}                                                                  \\
+    \toprule
+    \textbf{函数名}       & \textbf{输入}                                            & \textbf{输出} & \textbf{功能}    \\ \midrule
+    \endhead
+    \hline
+    \multicolumn{4}{r}{续下页}
+    \endfoot
+    \endlastfoot
+    add                & a: f64, b: f64                                         & f64         & 计算两个浮点数的和      \\
+    sub                & a: f64, b: f64                                         & f64         & 计算两个浮点数的差      \\
+    mul                & a: f64, b: f64                                         & f64         & 计算两个浮点数的乘积     \\
+    div                & a: f64, b: f64                                         & f64         & 计算两个浮点数的商      \\
+    max                & a: T, b: T                                             & T           & 返回两个可比较值中的最大值  \\
+    min                & a: T, b: T                                             & T           & 返回两个可比较值中的最小值  \\
+    ceil               & x: f64                                                 & f64         & 计算大于等于输入的最小整数  \\
+    floor              & x: f64                                                 & f64         & 计算小于等于输入的最大整数  \\
+    round              & x: f64                                                 & f64         & 四舍五入到最接近的整数    \\
+    pow                & base: f64, exp: i32                                    & f64         & 计算基数的指数次幂      \\
+    exp                & x: f64                                                 & f64         & 计算e的x次方        \\
+    sqrt               & x: f64                                                 & f64         & 计算平方根          \\
+    cbrt               & x: f64                                                 & f64         & 计算立方根          \\
+    abs                & value: i64                                             & i64         & 计算整数的绝对值       \\
+    fabs               & value: f64                                             & f64         & 计算浮点数的绝对值      \\
+    sin                & x: f64                                                 & f64         & 计算正弦值（输入为角度）   \\
+    cos                & x: f64                                                 & f64         & 计算余弦值（输入为角度）   \\
+    tan                & x: f64                                                 & f64         & 计算正切值（输入为角度）   \\
+    cot                & x: f64                                                 & f64         & 计算余切值（输入为角度）   \\
+    sec                & x: f64                                                 & f64         & 计算正割值（输入为角度）   \\
+    csc                & x: f64                                                 & f64         & 计算余割值（输入为角度）   \\
+    arcsin             & x: f64                                                 & f64         & 计算反正弦值         \\
+    arccos             & x: f64                                                 & f64         & 计算反余弦值         \\
+    arctan             & x: f64                                                 & f64         & 计算反正切值         \\
+    arccot             & x: f64                                                 & f64         & 计算反余切值         \\
+    arcsec             & x: f64                                                 & f64         & 计算反正割值         \\
+    arccsc             & x: f64                                                 & f64         & 计算反余割值         \\
+    sinh               & x: f64                                                 & f64         & 计算双曲正弦值        \\
+    cosh               & x: f64                                                 & f64         & 计算双曲余弦值        \\
+    tanh               & x: f64                                                 & f64         & 计算双曲正切值        \\
+    ln                 & x: f64                                                 & f64         & 计算自然对数         \\
+    log2               & x: f64                                                 & f64         & 计算以2为底的对数      \\
+    log10              & x: f64                                                 & f64         & 计算以10为底的对数     \\
+    log                & base: f64, x: f64                                      & f64         & 计算以任意底的对数      \\
+    is\_prime          & n: i64                                                 & bool        & 判断整数是否为质数      \\
+    gcd                & a: i64, b: i64                                         & i64         & 计算两个整数的最大公约数   \\
+    lcm                & a: i64, b: i64                                         & i64         & 计算两个整数的最小公倍数   \\
+    sum                & numbers: [f64]                                         & f64         & 计算数组中数值的总和     \\
+    difference         & numbers: [f64]                                         & f64         & 计算数组中数值的总差     \\
+    product            & numbers: [f64]                                         & f64         & 计算数组中数值的总积     \\
+    division           & numbers: [f64]                                         & f64         & 计算数组中数值的总商     \\
+    max\_value         & numbers: [f64]                                         & f64         & 返回数组中的最大值      \\
+    min\_value         & numbers: [f64]                                         & f64         & 返回数组中的最小值      \\
+    mode               & numbers: [f64]                                         & f64         & 返回数组中的众数       \\
+    median             & numbers: mut [f64]                                     & f64         & 返回数组中的中位数      \\
+    range              & numbers: [f64]                                         & f64         & 返回数组中的范围       \\
+    mean               & numbers: [f64]                                         & f64         & 返回数组中数值的算术平均值  \\
+    geometric\_mean    & numbers: [f64]                                         & f64         & 返回数组中数值的几何平均值  \\
+    harmonic\_mean     & numbers: [f64]                                         & f64         & 返回数组中数值的调和平均值  \\
+    weighted\_mean     & numbers: [f64], weights: [f64]                         & f64         & 返回数组中数值的加权平均值  \\
+    trimmed\_mean      & numbers: mut [f64], percent: f64                       & f64         & 返回数组中数值的截尾平均值  \\
+    polynomial         & x: f64, n: [f64]                                       & f64         & 计算多项式的值        \\
+    vector\_add        & v1: [f64], v2: [f64], result: mut [f64]                & ()          & 计算两个向量的加法      \\
+    vector\_sub        & v1: [f64], v2: [f64], result: mut [f64]                & ()          & 计算两个向量的减法      \\
+    dot\_product       & v1: [f64], v2: [f64]                                   & f64         & 计算两个向量的点积      \\
+    cross\_product     & v1: [f64], v2: [f64], result: mut [f64]                & ()          & 计算两个向量的叉积      \\
+    bessel\_j0         & x: f64                                                 & f64         & 计算第一类零阶贝塞尔函数的值 \\
+    gamma              & x: f64                                                 & f64         & 计算伽玛函数的值       \\
+    erf                & x: f64                                                 & f64         & 计算误差函数的值       \\
+    complex\_add       & a\_real: f64, a\_imag: f64, b\_real: f64, b\_imag: f64 & (f64, f64)  & 计算两个复数的加法      \\
+    complex\_sub       & a\_real: f64, a\_imag: f64, b\_real: f64, b\_imag: f64 & (f64, f64)  & 计算两个复数的减法      \\
+    complex\_mul       & a\_real: f64, a\_imag: f64, b\_real: f64, b\_imag: f64 & (f64, f64)  & 计算两个复数的乘法      \\
+    complex\_div       & a\_real: f64, a\_imag: f64, b\_real: f64, b\_imag: f64 & (f64, f64)  & 计算两个复数的除法      \\
+    complex\_conjugate & a\_real: f64, a\_imag: f64                             & (f64, f64)  & 计算复数的共轭        \\ \bottomrule
+\end{longtable}
+
+\subsection{mutex库}
+
+\subsubsection{互斥对象（Mutual Exclusion Object）}
+
+Mutex，全称是“mutual exclusion object”，即“互斥对象”。它是一种用于多线程编程中的同步机制，用来确保同一时间只有一个线程能够访问某个共享资源，从而避免竞争条件（race conditions）导致的数据不一致问题。
+
+Mutex 的工作原理类似于锁，线程在访问共享资源前需要先获取这个锁，获取锁成功后才能访问资源。在资源访问完成后，线程必须释放锁，允许其他线程访问该资源。若其他线程在此期间尝试访问该资源，由于锁已经被占用，这些线程将会被阻塞，直到锁被释放为止。
+
+简单来说，Mutex 通过锁定机制确保了多线程环境下对共享资源的访问是安全的，有序的，避免了多个线程同时修改数据而导致的错误。
+
+\subsubsection{Mutex数据结构}
+
+MinmusOS 实现了一个简单的 Mutex（互斥锁），用于保证多线程环境中对共享数据的独占访问。\cref{lst:MutexDataStructureDefinition}定义了Mutex结构体。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub struct Mutex<T> {
+    target: T,
+    free: AtomicBool,
+}
+    \end{minted}
+    \caption{\texttt{Mutex}数据结构定义}\label{lst:MutexDataStructureDefinition}
+\end{listing}
+
+Mutex结构体包含两个字段：target 和 free。target 是一个泛型字段，用于存储 Mutex 需要保护的数据，使得该互斥锁可以适用于多种数据类型。free 是一个 AtomicBool 类型的字段，用于标示锁的状态，确保在多线程环境中对共享数据的访问是安全的。
+
+\cref{lst:MutexDataStructureImplement}实现了Mutex结构体的方法：
+
+\begin{enumerate}
+    \item \textbf{new方法}：这个构造函数用于创建 Mutex 的新实例。它接受一个泛型参数 value，该参数是 Mutex 将要保护的数据。在初始化时，free 字段被设置为 true，表示锁是可用的。这样的设计使得锁的初始化直接与它将要保护的数据绑定，保证了数据保护的始终性。
+    \item \textbf{acquire\_mut方法}：这个方法用于获取对受保护数据的可变引用。它首先检查 free 字段的状态，如果锁被占用（即 free 为 false），则进入等待循环直到锁变为可用。一旦 free 为 true，方法将其设置为 false 并返回受保护数据的可变引用。这种方式确保了在任何时刻，只有一个线程可以修改受保护的数据。
+    \item \textbf{acquire方法}：与 \texttt{acquire\_mut()} 方法类似，这个方法提供对受保护数据的不可变引用。它同样会检查 free 字段，等待直到锁变为可用，然后将其设置为占用状态。这个方法是为了那些只需要读取而不需要修改数据的场景设计的，它保证了数据在读取期间不会被其他线程修改。
+    \item \textbf{free方法}：这个方法用于释放 Mutex。当数据访问完成后，调用此方法将 free 字段设置回 true，表示锁现在是空闲的，其他线程可以尝试获取这个锁。这是保证多线程程序正确运行的关键环节，防止了死锁的发生并提高了资源的利用效率。
+\end{enumerate}
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+impl<T> Mutex<T> {
+    pub const fn new(value: T) -> Self {
+        Self {
+            target: value,
+            free: AtomicBool::new(true),
+        }
+    }
+
+    pub fn acquire_mut(&mut self) -> &mut T {
+        while !self.free.load(Ordering::SeqCst) {}
+        self.free.store(false, Ordering::SeqCst);
+        &mut self.target
+    }
+
+    pub fn acquire(&mut self) -> &T {
+        while !self.free.load(Ordering::SeqCst) {}
+        self.free.store(false, Ordering::SeqCst);
+        &self.target
+    }
+
+    pub fn free(&self) {
+        self.free.store(true, Ordering::SeqCst);
+    }
+}
+    \end{minted}
+    \caption{\texttt{Mutex}数据结构实现}\label{lst:MutexDataStructureImplement}
+\end{listing}
+
+\subsubsection{Mutex库作用}
+
+在 MinmusOS 内核中，Mutex 库扮演了一个至关重要的角色，主要通过提供基本的线程同步机制来保证内核的稳定性和效率。以下是 Mutex 在 MinmusOS 中的重要意义：
+
+\begin{enumerate}
+    \item \textbf{数据一致性和完整性}：在多线程环境中，线程经常需要访问和修改共享资源。Mutex 库确保在任一时刻，只有一个线程可以访问这些资源，从而避免了数据的竞争条件和不一致性。这对于操作系统内核尤为重要，因为内核需要管理和维护核心的数据结构，如进程表、文件系统缓存等。
+    \item \textbf{系统稳定性}：通过有效的锁机制，Mutex 库帮助内核维持操作稳定性。防止了多个线程同时修改同一资源可能导致的系统崩溃或不可预期的行为。此外，正确的锁策略还可以预防死锁的情况，保持系统的高效运行。
+    \item \textbf{性能优化}：Mutex 的实现通常尽量减少锁的持有时间，以及优化等待锁的线程的调度。这有助于减少线程阻塞和上下文切换的开销，从而提升系统整体的性能。
+    \item \textbf{设计简洁性}：提供一个简单而通用的 Mutex 实现使得内核代码更加清晰和易于维护。开发者可以重复使用这一同步原语，而无需为每个需要同步的场景重新发明轮子。这降低了代码的复杂性，同时提高了开发效率和代码的可重用性。
+\end{enumerate}
+
+总体而言，Mutex 库为 MinmusOS 提供了一个关键的同步工具，它是实现多线程安全访问共享资源的基石，对保证操作系统的整体安全性、稳定性和性能至关重要。
+
+\subsection{print库}
+
+print 库（\cref{lst:LibSrcPrintRust}）为 MinmusOS 操作系统内核提供了基础的输出功能，使得开发者能够在底层系统级别上打印和管理输出信息。这个库通过实现 Printer 数据结构和相关的 print 及 println 宏，简化了字符串的格式化和输出过程。通过将 Rust 的强大宏系统与操作系统的中断服务结合使用，print 库不仅支持基础的字符串输出，还允许复杂的格式化操作，极大地增强了开发和调试的效率。此外，它的实现方式考虑了系统资源的直接管理和优化，确保了输出操作的高效性和安全性，使其成为系统级编程中不可或缺的工具。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+use core::fmt;
+
+pub static mut PRINTER: Printer = Printer {};
+
+pub struct Printer {}
+
+impl fmt::Write for Printer {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        self.prints(s);
+        Ok(())
+    }
+}
+
+impl Printer {
+    pub fn prints(&self, s: &str) {
+        unsafe {
+            let ptr: *const u8 = s.as_ptr();
+            let len: usize = s.len();
+            core::arch::asm!(
+            "push eax",
+            "push ebx",
+            "push ecx",
+            "int 0x80",
+            "pop ecx",
+            "pop ebx",
+            "pop eax",
+            in("eax") 0,
+            in("ebx") ptr as u32,
+            in("ecx") len as u32,
+            );
+        }
+    }
+}
+
+pub fn _print(args: fmt::Arguments) {
+    use core::fmt::Write;
+    unsafe {
+        PRINTER.write_fmt(args).unwrap();
+    }
+}
+
+#[macro_export]
+macro_rules! print {
+    ...
+}
+
+#[macro_export]
+macro_rules! println {
+    ...
+}
+    \end{minted}
+    \caption{lib/src/print.rs}\label{lst:LibSrcPrintRust}
+\end{listing}
+
+\subsubsection{Printer数据结构}
+
+Printer 数据结构在这个实现中是一个简单的空结构体。它的主要目的是提供一个具体的实体来实现字符串的输出功能。在操作系统级别的编程中，通常不会涉及到复杂的对象状态管理，因此，一个空结构体已足够用于封装所需的输出功能。
+
+Printer 结构体实现了 \texttt{fmt::Write} trait，这是 Rust 标准库提供的一个 trait，用于定义一个可以输出字符串的类型。具体来说，\texttt{fmt::Write} trait 要求实现一个名为 write\_str 的方法，该方法接收一个字符串切片并返回一个 \texttt{fmt::Result}。
+
+write\_str 方法是 \texttt{fmt::Write} trait 的核心实现。在 Printer 结构体中，write\_str 方法调用了内部的 prints 方法来实际输出字符串，然后返回 \texttt{Ok(())} 表示成功。这样的设计允许 Printer 结构体通过 Rust 的格式化宏（如 \texttt{write!} 或 \texttt{format!}）进行输出。
+
+prints 方法是 Printer 的自定义方法，用于将字符串输出到底层系统。方法内部使用了不安全代码块，因为它涉及到直接的内存地址访问和汇编指令调用。具体步骤包括：
+
+\begin{enumerate}
+    \item \textbf{寄存器推栈}
+          \begin{enumerate}
+              \item \texttt{push eax}：将 eax 寄存器的当前值推入堆栈。eax 通常用于在系统调用中传递功能号或返回值。
+              \item \texttt{push ebx}：将 ebx 寄存器的当前值推入堆栈。在这段代码中，ebx 用于传递字符串的地址。
+              \item \texttt{push ecx}：将 ecx 寄存器的当前值推入堆栈。ecx 用于传递字符串的长度。
+          \end{enumerate}
+    \item \textbf{中断调用}
+          \begin{enumerate}
+              \item \texttt{int 0x80}：这条指令触发编号为 0x80 的中断，这通常是 UNIX 和 Linux 系统中用于系统调用的中断。通过此中断，操作系统可以执行用户请求的服务。
+          \end{enumerate}
+    \item \textbf{设置寄存器值}
+          \begin{enumerate}
+              \item \texttt{in("eax") 0}：将 eax 寄存器设置为 0。
+              \item \texttt{in("ebx") ptr as u32}：将 ptr （字符串的地址）转换为 u32 类型，并设置给 ebx 寄存器。
+              \item \texttt{in("ecx") len as u32}：将 len （字符串的长度）转换为 u32 类型，并设置给 ecx 寄存器。
+          \end{enumerate}
+    \item \textbf{寄存器出栈}
+          \begin{enumerate}
+              \item \texttt{pop ecx}：从堆栈中弹出一个值到 ecx 寄存器，恢复其原始的上下文值。
+              \item \texttt{pop ebx}：从堆栈中弹出一个值到 ebx 寄存器，恢复其原始的上下文值。
+              \item \texttt{pop eax}：从堆栈中弹出一个值到 eax 寄存器，恢复其原始的上下文值。
+          \end{enumerate}
+\end{enumerate}
+
+此汇编代码段利用了操作系统的系统调用接口来执行打印操作，通过堆栈操作确保了寄存器的原始值在调用结束后能够恢复，保证了调用的安全性和稳定性。这种方式允许操作系统内核代码直接与硬件交互，实现了在内核级别的基本输出功能。
+
+\subsubsection{print宏}
+
+print 宏在 Rust 中是一种非常强大的工具，允许开发者通过简洁的语法进行复杂的代码扩展。在 MinmusOS 中，print 宏的实现展示了如何在底层系统级别使用 Rust 的宏系统来创建用户友好的打印接口。
+
+\_print 函数是 print 宏背后的核心函数，其参数 args 是一个 \texttt{fmt::Arguments} 类型，这是一个由 \texttt{format\_args!} 宏生成的结构体，它包含了所有需要格式化的参数。这个结构体使得参数能够在运行时被有效地处理和格式化。print 宏通过 \texttt{macro\_rules!} 定义，这允许它接受不确定数量的参数，这些参数通过 \texttt{format\_args!} 宏被转换成 \texttt{fmt::Arguments} 结构体。
+
+这种实现使得 print 宏不仅在开发过程中为调试提供便利，还能在最终产品中用于日志记录和用户交互信息的输出。通过将复杂的格式化操作封装在简单的宏调用后，大大降低了开发者在系统级编程时的工作量。
+
+\subsubsection{println宏}
+
+println 宏在 Rust 中是用于打印输出后自动换行的宏，它在 print 宏的基础上增加了换行功能。
+
+println 宏通过 \texttt{macro\_rules!} 被定义为两种形式，以处理不同的调用情况：
+
+\begin{enumerate}
+    \item \textbf{无参数调用}：当 println 宏没有任何参数时，它直接打印一个换行符。
+    \item \textbf{带参数调用}：当提供参数时，宏首先使用 print 宏来处理和格式化这些参数，然后再次调用 PRINTER.prints 方法来添加一个换行符。这种方式使得宏在输出完指定的内容后能自动开始新的一行。
+\end{enumerate}
+
+通过将 print 宏的功能扩展到自动添加换行符，println 宏极大地简化了日常编程中的打印任务。它允许开发者不必在每次打印后手动添加换行代码，提高了代码的可读性和编写效率。
+
+println 宏尤其适用于输出日志信息、调试信息以及任何需要结构化显示和清晰分隔的输出场景。在系统开发和调试阶段，能够清晰地看到每条信息的起始和结束，极大地帮助了问题的定位和修复。
+
+\subsection{rand库}
+
+MinmusOS的lib/src/rand.rs文件为该操作系统提供了一系列的随机数生成工具，以支持系统和应用程序的需求。通过实现多种随机数生成算法，该库确保了足够的灵活性和应用广泛性，从简单的线性同余发生器到复杂的梅森旋转算法，都为不同的应用场景提供了优化的解决方案。这些算法支持从基本的伪随机序列生成到加密级的随机数生成，满足操作系统级的多样化需求。
+
+以下是rand库中包含的八种随机数生成算法：
+
+\begin{enumerate}
+    \item 线性同余生成器（Linear Congruential Generator）
+    \item 异或移位算法（Xorshift）
+    \item 中平方方法（Middle Square Method）
+    \item 斐波那契线性同余生成器（Fibonacci Linear Congruential Generator）
+    \item 梅森旋转算法（Mersenne Twister）
+    \item 时间种子生成器（Time Seed Generator）
+    \item 线性反馈移位寄存器（Linear Feedback Shift Register）
+    \item 组合生成器（Combined Generator）
+\end{enumerate}
+
+\subsubsection{线性同余生成器（Linear Congruential Generator）}
+
+线性同余生成器（Linear Congruential Generator，LCG）（\cref{lst:LinearCongruentialGenerator}）是一种简单但广泛使用的随机数生成算法，其原理基于线性方程。这种生成器的核心在于一个递归公式，其中每个新的随机数都是基于前一个数计算得来。具体来说，该算法通过特定的增量、乘数和模数来更新状态，从而产生一个伪随机数序列。在MinmusOS中实现的线性同余生成器设定了固定的乘数（a=1664525）、增量（c=1013904223）和模数（m= $2^{32}$ ），这些值的选择关系到生成随机数序列的质量和周期长度。
+
+在使用上，线性同余生成器首先通过一个初始种子值来设定起始状态，之后每次调用next方法都会根据上述公式计算出下一个随机数。这种方法的优势在于其实现简单，运算速度快，适用于需要大量随机数的场合。然而，它的缺点也很明显，包括可能的周期性和预测性，尤其是当参数选择不当时。
+
+尽管存在这些限制，线性同余生成器仍然是许多系统和应用中的首选，因为它提供了一种权衡性能和复杂度的有效方式。在MinmusOS中，这个算法被用来支持各种系统级和应用级功能，例如内存管理、进程调度等，其中对随机性的需求较为宽松。总的来说，线性同余生成器是一个在实践中表现良好的工具，尤其是在资源有限的环境中。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub struct LCG {
+    state: u32,
+    a: u32,
+    c: u32,
+    m: u32,
+}
+
+impl LCG {
+    pub fn new(seed: u32) -> Self {
+        LCG {
+            state: seed,
+            a: 1664525,
+            c: 1013904223,
+            m: 2_u32.pow(32),
+        }
+    }
+
+    pub fn next(&mut self) -> u32 {
+        self.state = (self.a.wrapping_mul(self.state).wrapping_add(self.c)) % self.m;
+        self.state
+    }
+}
+    \end{minted}
+    \caption{线性同余生成器}\label{lst:LinearCongruentialGenerator}
+\end{listing}
+
+\subsubsection{异或移位算法（Xorshift）}
+
+异或移位算法（Xorshift）（\cref{lst:Xorshift}）是一种基于位运算的快速伪随机数生成器，由George Marsaglia提出。该算法的核心在于通过几次简单的异或（XOR）和位移（shift）操作来生成随机数，具有实现简单和运行高效的特点。在MinmusOS中，Xorshift32结构体采用了32位无符号整数（u32）作为其状态，通过连续的位运算保证了生成随机数的速度和随机性。
+
+具体到实现，算法首先从一个非零的种子开始，以保证随机数生成的连续性。然后，它执行一系列的异或和位移操作，这些操作包括将当前状态左移13位、右移17位，再左移5位，最后将这些结果再次异或。这些操作的选择不是随机的，而是基于实验和理论分析，以达到良好的随机分布和周期性。
+
+由于其简单和高效的特性，Xorshift算法在需要快速生成大量随机数的场景中非常有用，例如在模拟或游戏开发中。同时，这种算法也是研究随机数生成理论的一个良好案例，展示了简单操作如何通过巧妙组合产生复杂的随机序列。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub struct Xorshift32 {
+    state: u32,
+}
+
+impl Xorshift32 {
+    pub fn new(seed: u32) -> Self {
+        Xorshift32 {
+            state: seed,
+        }
+    }
+
+    pub fn next(&mut self) -> u32 {
+        let mut x: u32 = self.state;
+        x ^= x << 13;
+        x ^= x >> 17;
+        x ^= x << 5;
+        self.state = x;
+        x
+    }
+}
+    \end{minted}
+    \caption{异或移位算法}\label{lst:Xorshift}
+\end{listing}
+
+\subsubsection{中平方方法（Middle Square Method）}
+
+中平方方法（Middle Square Method）（\cref{lst:MiddleSquareMethod}）是一种古老且直观的伪随机数生成算法，最初由冯·诺依曼在1940年代提出。该算法的基本思想是取一个数（种子），将其平方，然后再取中间的几位数作为下一个随机数，这个过程不断重复。在MinmusOS中，这个算法通过MiddleSquare结构体实现，使用32位无符号整数（u32）来存储当前状态。
+
+具体实现中，MiddleSquare首先接受一个初始种子值来设置起始状态。随机数的生成过程中，首先计算当前状态的平方，然后通过位移和位掩码操作提取平方结果的中间部分作为新的随机数。在此实现中，通过右移8位并应用16位掩码（0xFFFF），从而获取中间16位。这种方法的优点是实现简单，但其缺点也很明显，包括可能的短周期和模式预测性，特别是当种子或中间位的选择不恰当时。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub struct MiddleSquare {
+    state: u32,
+}
+
+impl MiddleSquare {
+    pub fn new(seed: u32) -> Self {
+        MiddleSquare {
+            state: seed,
+        }
+    }
+
+    pub fn next(&mut self) -> u32 {
+        let squared: u32 = self.state.wrapping_mul(self.state);
+        let middle: u32 = (squared >> 8) & 0xFFFF;
+        self.state = middle;
+        middle
+    }
+}
+    \end{minted}
+    \caption{中平方方法}\label{lst:MiddleSquareMethod}
+\end{listing}
+
+\subsubsection{斐波那契线性同余生成器（Fibonacci Linear Congruential Generator）}
+
+斐波那契线性同余生成器（Fibonacci Linear Congruential Generator，FLCG）（\cref{lst:FibonacciLinearCongruentialGenerator}）是一种结合了线性同余算法和斐波那契序列特性的伪随机数生成器。这种生成器利用了两种算法的优点，通过线性同余方法的数学基础与斐波那契数列的自然递归特性，创造出一个更为复杂且周期更长的随机序列生成过程。
+
+在MinmusOS中的实现中，FibonacciLCG由两个状态（state1 和 state2）和一个模数（m）组成，初始状态通过两个种子值设定。随机数生成过程首先计算这两个状态的和，并取模得到新的随机数。然后，状态更新，其中第一个状态变为第二个，而第二个状态则更新为新计算出的值。这种更新机制保证了生成的随机数序列具有斐波那契数列的递归特性，同时线性同余方法确保了数值的均匀分布。
+
+斐波那契线性同余生成器的特点是它能够生成更加复杂的随机序列，相比传统的线性同余生成器具有更长的周期和更好的统计特性，这使得它在需要较高随机性的应用中非常有用，如模拟和密码学领域。尽管如此，算法的效率和周期性还是受到种子选择和模数设置的影响，因此在实际应用中需要仔细选择这些参数以确保最优的随机性表现。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub struct FibonacciLCG {
+    state1: u32,
+    state2: u32,
+    m: u32,
+}
+
+impl FibonacciLCG {
+    pub fn new(seed1: u32, seed2: u32) -> Self {
+        FibonacciLCG {
+            state1: seed1,
+            state2: seed2,
+            m: 2_u32.pow(32),
+        }
+    }
+
+    pub fn next(&mut self) -> u32 {
+        let next_value: u32 = (self.state1.wrapping_add(self.state2)) % self.m;
+        self.state1 = self.state2;
+        self.state2 = next_value;
+        next_value
+    }
+}
+    \end{minted}
+    \caption{斐波那契线性同余生成器}\label{lst:FibonacciLinearCongruentialGenerator}
+\end{listing}
+
+\subsubsection{梅森旋转算法（Mersenne Twister）}
+
+梅森旋转算法（Mersenne Twister）（\cref{lst:MersenneTwister}）是一种高度有效且广泛应用的伪随机数生成器，以其极长的周期和卓越的统计质量著称。这种算法以一个质数（即梅森素数）为基础，设计了复杂的位运算和数组索引技巧，确保随机数序列具有非常长的周期，同时保持良好的均匀分布特性。在MinmusOS系统中，Mersenne Twister的实现通过维护一个624个元素的状态数组来实现，每个元素为32位无符号整数。
+
+在初始化阶段，Mersenne Twister从一个种子开始，利用数组的前一个元素来计算后一个元素的状态，这个过程结合了线性反馈和一些非线性变换。当生成随机数时，如果数组的所有元素都已被使用，则会执行一个名为“twist”的操作，这是算法的核心，用于重新生成整个状态数组，从而确保随机数生成的连续性。
+
+梅森旋转算法的一个关键特性是它的“twist”操作，它通过特定的位操作和模运算将当前状态数组转换为新的状态数组，这些操作包括位的移动和异或。这确保了算法的输出不会快速重复，从而极大地增加了随机数序列的复杂度和随机性。
+
+尽管梅森旋转算法提供了优秀的统计性质和长周期，但它的内存占用相对较高，因此在内存受限的环境中可能不是最佳选择。然而，对于大多数科学计算、仿真和游戏开发等需要高质量随机数序列的应用，梅森旋转算法仍然是非常理想的选择。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub struct MersenneTwister {
+    state: [u32; 624],
+    index: usize,
+}
+
+impl MersenneTwister {
+    pub fn new(seed: u32) -> Self {
+        let mut mt = MersenneTwister {
+            state: [0; 624],
+            index: 624,
+        };
+        mt.state[0] = seed;
+        for i in 1..624 {
+            mt.state[i] = 0x6c078965_u32.wrapping_mul(mt.state[i - 1] ^ (mt.state[i - 1] >> 30)).wrapping_add(i as u32);
+        }
+        mt
+    }
+
+    pub fn next(&mut self) -> u32 {
+        if self.index >= 624 {
+            self.twist();
+        }
+        let mut y: u32 = self.state[self.index];
+        y ^= y >> 11;
+        y ^= (y << 7) & 0x9d2c5680;
+        y ^= (y << 15) & 0xefc60000;
+        y ^= y >> 18;
+        self.index += 1;
+        y
+    }
+
+    fn twist(&mut self) {
+        for i in 0..624 {
+            let y: u32 = (self.state[i] & 0x80000000) + (self.state[(i + 1) % 624] & 0x7fffffff);
+            self.state[i] = self.state[(i + 397) % 624] ^ (y >> 1);
+            if y % 2 != 0 {
+                self.state[i] ^= 0x9908b0df;
+            }
+        }
+        self.index = 0;
+    }
+}
+    \end{minted}
+    \caption{梅森旋转算法}\label{lst:MersenneTwister}
+\end{listing}
+
+\subsubsection{时间种子生成器（Time Seed Generator）}
+
+时间种子生成器（Time Seed Generator）（\cref{lst:TimeSeedGenerator}）是一种基于时间作为初始种子的随机数生成方法。在这种方法中，时间戳通常被用作种子值，以确保每次启动时生成的随机数序列具有唯一性，因为种子值依赖于实际的系统时间，这样每次启动或调用都不同。
+
+在MinmusOS中实现的TimeSeed结构体采用一个64位的时间戳，通过截取其低32位作为初始状态。随后，通过一系列的位运算（位移和异或操作），来更新状态并生成新的随机数。这些位运算包括左移13位，右移17位，再左移5位，每次操作都通过异或将变换后的位重新混合，从而产生难以预测的结果。
+
+这种基于时间种子的随机数生成器的主要优势在于其简单性和能够根据不同的时间产生不同的随机序列，使得其非常适合于需要简单随机性的应用，如临时密码生成或会话标识符的创建。然而，由于其依赖于系统时间，其随机性质并不适合于所有类型的应用，特别是那些需要高级随机性如加密应用。
+
+总体而言，时间种子生成器提供了一种快速且方便的方式来生成随机数，但在安全性要求较高的场合可能需要更复杂的随机数生成方法以确保随机序列的不可预测性和安全性。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub struct TimeSeed {
+    state: u32,
+}
+
+impl TimeSeed {
+    pub fn new(start_time: u64) -> Self {
+        TimeSeed {
+            state: (start_time & 0xFFFFFFFF) as u32,
+        }
+    }
+
+    pub fn next(&mut self) -> u32 {
+        self.state ^= self.state << 13;
+        self.state ^= self.state >> 17;
+        self.state ^= self.state << 5;
+        self.state
+    }
+}
+    \end{minted}
+    \caption{时间种子生成器}\label{lst:TimeSeedGenerator}
+\end{listing}
+
+\subsubsection{线性反馈移位寄存器（Linear Feedback Shift Register）}
+
+线性反馈移位寄存器（Linear Feedback Shift Register，LFSR）（\cref{lst:LinearFeedbackShiftRegister}）是一种有效的数字逻辑结构，广泛用于生成伪随机数和实现数字通信系统中的信号加密。LFSR 通过移位寄存器的结构，结合选定的反馈位进行线性反馈来生成序列。这种方法的优点在于它可以非常高效地生成具有良好统计性质和较长周期的伪随机序列。
+
+在MinmusOS中，LFSR实现了一个基本的线性反馈移位寄存器，其中包含一个32位的状态寄存器。随机数的生成过程包括对状态寄存器进行位移操作，并从寄存器的不同位置取位进行异或运算，得到的结果决定了反馈位。具体到这个实现，反馈位是通过状态寄存器的第0位、第2位、第3位和第5位进行异或运算得到的。然后，整个寄存器向右移动一位，新计算出的反馈位被置于寄存器的最高位（第31位）。
+
+这种生成器的一个重要特性是其周期和生成的序列质量依赖于反馈位的选择和初始种子的值。合适的反馈策略可以使得LFSR生成的序列达到最大周期，且输出序列在很多应用场合下近似于随机。LFSR在实际应用中非常灵活，常见于无线通信和加密算法中，例如流密码和硬件加速的随机数生成。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub struct LFSR {
+    state: u32,
+}
+
+impl LFSR {
+    pub fn new(seed: u32) -> Self {
+        LFSR {
+            state: seed,
+        }
+    }
+
+    pub fn next(&mut self) -> u32 {
+        let bit: u32 = ((self.state >> 0) ^ (self.state >> 2) ^ (self.state >> 3) ^ (self.state >> 5)) & 1;
+        self.state = (self.state >> 1) | (bit << 31);
+        self.state
+    }
+}
+    \end{minted}
+    \caption{线性反馈移位寄存器}\label{lst:LinearFeedbackShiftRegister}
+\end{listing}
+
+\subsubsection{组合生成器（Combined Generator）}
+
+组合生成器（Combined Generator）（\cref{lst:CombinedGenerator}）是一种采用多个随机数生成算法合并输出以增强随机性和复杂性的方法。这种生成器通常结合两种或更多的算法，目的是利用各自算法的优点，同时降低各个算法潜在弱点的影响，以生成更难预测和统计上更均匀的随机数序列。
+
+在MinmusOS中实现的CombinedGenerator结构体结合了线性同余生成器（LCG）和异或移位算法（Xorshift32）。这种组合允许利用LCG的数学基础和Xorshift的高效位运算，通过各自独立的随机序列生成并使用异或（XOR）运算合并结果，从而提高整体的随机性。具体操作中，CombinedGenerator首先使用两个不同的种子值初始化两个独立的生成器，然后在每次调用next方法时，分别从这两个生成器获取一个随机数，并通过异或操作合并这两个随机数，输出最终的随机值。
+
+这种组合方法的优势在于它能够有效地抵消单一生成器可能存在的周期性短、模式可预测等问题，同时保持生成速度和效率。此外，通过适当选择和配置内部生成器，可以进一步优化输出序列的随机性和性能。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub struct CombinedGenerator {
+    gen1: LCG,
+    gen2: Xorshift32,
+}
+
+impl CombinedGenerator {
+    pub fn new(seed1: u32, seed2: u32) -> Self {
+        CombinedGenerator {
+            gen1: LCG::new(seed1),
+            gen2: Xorshift32::new(seed2),
+        }
+    }
+
+    pub fn next(&mut self) -> u32 {
+        let r1: u32 = self.gen1.next();
+        let r2: u32 = self.gen2.next();
+        r1 ^ r2
+    }
+}
+    \end{minted}
+    \caption{组合生成器}\label{lst:CombinedGenerator}
+\end{listing}
+
+\subsection{sort库}
+
+lib/src/sort.rs文件是MinmusOS标准运行库的一个组成部分，包含多种排序算法的实现，这些排序算法可以对整数数组进行高效排序，是操作系统或其他系统级软件中常见的基础算法。通过Rust语言的功能，这个库确保了代码的安全性和效率，适合在资源受限的环境中使用。
+
+以下是sort库中包含的十种排序算法：
+
+\begin{enumerate}
+    \item 冒泡排序（Bubble Sort）
+    \item 选择排序（Selection Sort）
+    \item 插入排序（Insertion Sort）
+    \item 合并排序（Merge Sort）
+    \item 快速排序（Quick Sort）
+    \item 堆排序（Heap Sort）
+    \item 希尔排序（Shell Sort）
+    \item 计数排序（Counting Sort）
+    \item 桶排序（Bucket Sort）
+    \item 基数排序（Radix Sort）
+\end{enumerate}
+
+sort库的实现较为基础，排序算法（\cref{lst:LibSrcSortRust}）的实现过程在此不再赘述。
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+pub fn bubble_sort(arr: &mut [i32]) { ... }
+pub fn selection_sort(arr: &mut [i32]) { ... }
+pub fn insertion_sort(arr: &mut [i32]) { ... }
+pub fn merge_sort(arr: &mut [i32]) { ... }
+pub fn quick_sort(arr: &mut [i32]) { ... }
+pub fn heap_sort(arr: &mut [i32]) { ... }
+pub fn shell_sort(arr: &mut [i32]) { ... }
+pub fn counting_sort(arr: &mut [i32]) { ... }
+pub fn bucket_sort(arr: &mut [i32]) { ... }
+pub fn radix_sort(arr: &mut [i32]) { ... }
+    \end{minted}
+    \caption{lib/src/sort.rs}\label{lst:LibSrcSortRust}
+\end{listing}
+
+\subsubsection{冒泡排序（Bubble Sort）}
+
+冒泡排序是一种简单的排序算法，通过重复遍历待排序列，比较每对相邻元素，如果顺序错误就交换它们。这个过程重复进行，直到没有再需要交换的元素，此时列表已经排序完成。尽管其实现简单，但效率较低，主要用于教学和理解排序原理。
+
+\subsubsection{选择排序（Selection Sort）}
+
+选择排序是通过不断选择未排序部分的最小元素，并将其放到已排序序列的末尾来实现排序的算法。这个过程重复进行，直到所有元素均排序完毕。该方法不稳定，时间复杂度为 $O(n^2)$ ，适用于元素数量较少的情况。
+
+\subsubsection{插入排序（Insertion Sort）}
+
+插入排序将每一个数据插入到其在已排序列中的适当位置。它从第二个元素开始，逐个将未排序的元素插入到已排序部分，直到所有元素都被正确排序。插入排序在接近排序完成的列表上表现良好。
+
+\subsubsection{合并排序（Merge Sort）}
+
+合并排序是一种有效的排序方法，采用分治策略将数据分解成越来越小的部分，然后合并以排序。该算法将数组分割至单一元素数组，然后将它们重新合并成有序数组。它具有 $O(n \log n)$ 的时间复杂度，对大数据集合非常有效。
+
+\subsubsection{快速排序（Quick Sort）}
+
+快速排序是一种高效的排序算法，通过选取一个“基准”元素并将数组分为比它小的和比它大的两个子数组，然后对这两个子数组再递归地应用相同的过程来实现排序。其平均时间复杂度为 $O(n \log n)$ ，但最坏情况下为 $O(n^2)$ 。
+
+\subsubsection{堆排序（Heap Sort）}
+
+堆排序是基于优先队列概念的选择排序的一种改进。它使用二叉堆数据结构来管理数据，可以在 $O(\log n)$ 时间内找到最大值或最小值。时间复杂度为 $O(n \log n)$ ，适用于大数据量排序。
+
+\subsubsection{希尔排序（Shell Sort）}
+
+希尔排序是插入排序的一种泛化，也称为减小增量排序算法。它通过将原列表分割成多个子列表，各自独立排序，然后逐步综合这些子列表。这种方法提高了插入排序处理大规模数组时的速度，虽然最坏情况的时间复杂度仍为 $O(n^2)$ 。
+
+\subsubsection{计数排序（Counting Sort）}
+
+计数排序是一个非基于比较的排序算法，适用于一定范围内的整数排序。通过计算每个元素的出现次数来实现排序。该算法在数据范围不是特别大且数据分布均匀时，能够提供线性的时间复杂度 $O(n)$ 。
+
+\subsubsection{桶排序（Bucket Sort）}
+
+桶排序是计数排序的扩展，将元素分布到多个桶中，每个桶再分别排序（通常使用其他排序算法或递归应用桶排序）。它最适用于数据均匀分布的场景，可以在平均线性时间内完成排序，即 $O(n)$ 。
+
+\subsubsection{基数排序（Radix Sort）}
+
+基数排序是通过按位数切割数字，从最低位开始，使用稳定排序算法（如桶排序）逐步排序的方法。适用于整数或字符串排序，尤其是当键值的长度固定时，能够提供近线性的排序时间 $O(nk)$ （其中 $k$ 是键值的位数）。
+
+\subsection{string库}
+
+MinmusOS实现了一个字符串string库，以提供基本的字符串操作功能。这个库覆盖了从基本的字符串拼接到更复杂的比较和搜索操作。
+
+\cref{tab:StringLibraryFunctions}列出了string库中的各个函数以及它们的功能描述。
+
+\begin{longtable}[c]{@{}ll@{}}
+    \caption{string库函数}
+    \label{tab:StringLibraryFunctions}         \\
+    \toprule
+    \textbf{函数名} & \textbf{功能}                 \\ \midrule
+    \endfirsthead
+    \multicolumn{2}{r}{\textbf{续表~\thetable}}  \\
+    \toprule
+    \textbf{函数名} & \textbf{功能}                 \\ \midrule
+    \endhead
+    \hline
+    \multicolumn{2}{r}{续下页}
+    \endfoot
+    \endlastfoot
+    strlen       & 计算字符串的长度，直到0                \\
+    strcat       & 将 s2 拼接到 s1 后面              \\
+    strncat      & 将 s2 的前 len 个字符拼接到 s1 后面    \\
+    strcpy       & 复制 s2 到 s1                  \\
+    strncpy      & 复制 s2 的前 len 个字符到 s1        \\
+    strcmp       & 比较两个字符串                     \\
+    strcasecmp   & 不区分大小写地比较两个字符串              \\
+    strncmp      & 比较两个字符串的前 len 个字符           \\
+    strcasencmp  & 不区分大小写地比较两个字符串的前 len 个字符    \\
+    strupr       & 将字符串 s 中的小写字母转换为大写          \\
+    strlwr       & 将字符串 s 中的大写字母转换为小写          \\
+    strchr       & 查找字符 ch 在字符串 s 中的位置         \\
+    strstr       & 查找子字符串 substr 在字符串 s 中的位置   \\
+    strrchr      & 查找字符 ch 在字符串 s 中的最后位置       \\
+    strrstr      & 查找子字符串 substr 在字符串 s 中的最后位置 \\
+    strrev       & 将字符串 s 反转                   \\ \bottomrule
+\end{longtable}

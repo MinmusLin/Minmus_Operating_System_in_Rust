@@ -145,11 +145,11 @@
 % 在上述修改基础上，符合模板标题对齐要求
 \renewcommand{\cftdot}{$\cdot$}
 \renewcommand{\cftdotsep}{1}
-\setlength{\cftsecindent}{0em} % 符合毕业设计模板（理工类）一级标题顶格要求
-\setlength{\cftsubsecindent}{1em} % 符合毕业设计模板（理工类）二级标题对齐一级标题文字要求
-\setlength{\cftsubsubsecindent}{2.7em} % 符合毕业设计模板（理工类）三级标题对齐一级标题第四字要求
-\setlength{\cftbeforesecskip}{0pt} % 5?
-\setlength{\cftbeforesubsecskip}{0pt} % 3?
+\setlength{\cftsecindent}{0em}
+\setlength{\cftsubsecindent}{2em}
+\setlength{\cftsubsubsecindent}{4em}
+\setlength{\cftbeforesecskip}{0pt}
+\setlength{\cftbeforesubsecskip}{0pt}
 \setlength{\cftbeforesubsubsecskip}{0pt}
 \renewcommand{\contentsname}{\zihao{4}\heiti\textmd{目~~录}}
 \renewcommand{\cftsecfont}{\songti\zihao{5}}
