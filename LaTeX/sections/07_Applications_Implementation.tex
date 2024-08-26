@@ -1,3 +1,95 @@
 \section{应用程序实现}\label{sec:ApplicationsImplementation}
 
-在本节（\cref{sec:ApplicationsImplementation}）中，
+在本节（\cref{sec:ApplicationsImplementation}）中，笔者将详细探讨在MinmusOS上实现的一个示例应用程序——汉诺塔解决方案。这个示例应用程序不仅展示了基于Rust的系统级编程实践，也具体演示了如何在裸机或类似环境下运行复杂的应用程序。
+
+\subsection{应用程序构建脚本}
+
+apps/hanoi/build.rs构建脚本（\cref{lst:AppsHanoiBuildRust}）的主要功能是为Rust编译器配置特定的链接器脚本，以便正确地编译和链接汉诺塔应用程序。以下是详细介绍：
+
+\begin{enumerate}
+    \item \textbf{环境变量读取}：脚本使用 \texttt{env!("CARGO\_MANIFEST\_DIR")} 来获取当前包的清单（Manifest）目录。这个环境变量是由Cargo设置的，指向你的项目的根目录，即包含 Cargo.toml 的目录。
+    \item \textbf{路径拼接}：通过 \texttt{std::path::Path::new} 将获取到的目录转换为一个路径对象，然后使用 join 方法拼接上 linker.ld。这样操作是为了构造出链接器脚本的完整路径。
+    \item \textbf{链接器参数设置}：脚本使用 \texttt{println!} 输出一个特殊的编译器指令，这条指令会被Cargo捕捉并用于配置编译过程。具体来说，\texttt{cargo:rustc-link-arg-bins} 告诉Rust编译器在编译二进制文件时应该使用指定的链接器脚本。
+\end{enumerate}
+
+\begin{listing}[htbp]
+    \begin{minted}{rust}
+fn main() {
+    let local_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    println!("cargo:rustc-link-arg-bins=--script={}", local_path.join("linker.ld").display());
+}
+    \end{minted}
+    \caption{apps/hanoi/build.rs}\label{lst:AppsHanoiBuildRust}
+\end{listing}
+
+在操作系统内核中实现应用程序时，构建脚本起到的关键作用是确保应用程序能够与内核适当地链接，以便在内核的上下文中正确执行。使用自定义的链接器脚本，可以精确控制程序的内存布局、符号解析等关键方面，这些都是在裸机或自定义操作系统上运行代码的必要条件。通过这种方式，可以确保应用程序的代码和数据被放置在内核预期的特定位置，使得程序能够在没有标准操作系统支持的环境中运行。
+
+\subsection{应用程序链接器脚本}
+
+应用程序的链接器脚本（\cref{lst:HanoiLinkerScript}）是定义程序在内存中的布局的关键文件。该脚本指定了程序的各个部分应该放在内存的哪个位置，以及如何组织这些部分。这对于操作系统内核中运行的程序尤其重要，因为它们往往需要精确控制内存布局来确保程序的正常运行。
+
+\begin{listing}[htbp]
+    \begin{minted}{text}
+/* 配置程序入口点 */
+ENTRY(_start)
+
+/* 配置段的顺序和位置 */
+SECTIONS {
+    /* 定义起始内存地址 */
+    . = 0x02000000;
+
+    /* 定义应用程序开始标记 */
+    .start_marker :
+    {
+        LONG(0xB16B00B5)
+    }
+
+    /* 定义应用程序起始点 */
+    _app_start = .;
+
+    /* 定义启动段，包含启动代码的实际入口点 */
+    .start : {
+        *(.start)
+    }
+
+    /* 定义代码段，包含程序的机器代码 */
+    .text : {
+        *(.text .text.*)
+    }
+
+    /* 定义 BSS 段，包含程序中未初始化的数据 */
+    .bss : {
+        *(.bss .bss.*)
+    }
+
+    /* 定义只读数据段，包含常量等不应被程序修改的数据 */
+    .rodata : {
+        *(.rodata .rodata.*)
+    }
+
+    /* 定义数据段，包含已初始化的全局变量和静态变量 */
+    .data : {
+        *(.data .data.*)
+    }
+
+    /* 配置异常处理信息，用于支持运行时错误处理 */
+    .eh_frame : {
+        *(.eh_frame .eh_frame.*)
+    }
+    .eh_frame_hdr : {
+        *(.eh_frame_hdr .eh_frame_hdr.*)
+    }
+
+    /* 在内存中设置一个结束标记，用于标识引导加载器的结束 */
+    .end_marker :
+    {
+        SHORT(0xDEAD)
+    }
+}
+    \end{minted}
+    \caption{apps/hanoi/linker.ld}\label{lst:HanoiLinkerScript}
+\end{listing}
+
+\subsection{应用程序入口}
+
+\subsection{应用程序实现}
