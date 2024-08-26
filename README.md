@@ -4,6 +4,16 @@
 > For more details, please refer to the [MinmusOS Project Documentation](Documentation.pdf) (200 pages, 6.02 MB)
 >
 > 有关更多详细信息，请参考 [MinmusOS 项目说明文档](Documentation.pdf)（200 页，6.02 MB）
+> 
+> <p align="center">
+>   <img src="assets/Contents_1.png" width="33%">
+>   <img src="assets/Contents_2.png" width="33%">
+>   <img src="assets/Contents_3.png" width="33%">
+>   <br>
+>   <img src="assets/Contents_4.png" width="33%">
+>   <img src="assets/Contents_5.png" width="33%">
+>   <img src="assets/Contents_6.png" width="33%">
+> </p>
 
 ## 项目名称
 
