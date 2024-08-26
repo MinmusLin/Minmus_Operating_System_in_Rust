@@ -1,5 +1,10 @@
 # Minmus Operating System in Rust
 
+> [!TIP]
+> For more details, please refer to the [MinmusOS project documentation](Documentation.pdf) (200 pages，6.02 MB)
+>
+> 有关更多详细信息，请参考 [MinmusOS 项目说明文档](Documentation.pdf)（200 页，6.02 MB）
+
 ## 项目名称
 
 Minmus_Operating_System_in_Rust
