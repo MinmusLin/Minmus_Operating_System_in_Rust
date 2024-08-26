@@ -1,8 +1,92 @@
 \section{系统设计}\label{sec:SystemDesign}
 
-在本节（\cref{sec:SystemDesign}）中，
+在本节（\cref{sec:SystemDesign}）中，笔者将详细探讨 MinmusOS 项目的系统设计原则、系统架构设计、系统技术选型，以及项目结构设计。系统设计原则是确保操作系统可靠性、效率和可维护性的基础，包括封装、高内聚低耦合、面向对象设计、异常处理等多个方面。系统架构设计则涵盖了操作系统的主要组成部分，如引导程序、内核、标准运行库和应用程序，每个部分的功能和设计细节将在后文中详细阐述。系统技术选型将解释为何选择特定的编程语言和硬件架构对于 MinmusOS 的开发至关重要，特别是选择 Rust 语言而不是传统的 C/C++，以及选择基于 IA-32 架构的硬件平台的原因。这些技术选型不仅反映了对现有技术和资源的最大利用，也展示了项目在安全性和性能优化方面的考量。项目结构设计部分将介绍 MinmusOS 的组织结构，包括代码的模块化布局和各组件之间的交互方式，以确保高效的开发和维护流程。
+
+\subsection{系统设计原则}
+
+MinmusOS 的系统设计遵循了多个重要的软件工程原则，以确保其健壮性、可维护性和效率。
+
+\subsubsection{封装（Encapsulation）}
+
+在 MinmusOS 中，封装是通过模块化设计实现的，每个模块负责特定的功能。例如，内核中的驱动程序模块、内存管理模块、文件系统模块等，每个模块都将其内部数据和实现细节隐藏起来，只通过定义良好的接口与外界交互。这种封装确保了模块之间的依赖性最小化，同时也便于每个模块独立更新和维护。
+
+\subsubsection{高内聚低耦合（High Cohesion and Low Coupling）}
+
+MinmusOS 严格执行高内聚低耦合的设计原则。每个模块（如内存管理、进程调度等）都专注于一个具体的任务，确保模块内部各个部分紧密相关，共同完成单一功能，即高内聚。模块之间的交互通过简洁的接口进行，减少了依赖性。例如，内核与用户应用通过系统调用接口通信，系统调用接口提供了一个抽象层，使得用户程序不需要关心具体的硬件细节，即低耦合。
+
+\subsubsection{面向对象（Object-Oriented）}
+
+尽管 MinmusOS 主要用 Rust 实现，它仍然采用了面向对象的设计原则。各种硬件驱动程序可能继承自一个通用的驱动程序接口，实现特定的接口函数，这支持了代码的重用和模块间的互操作性。
+
+\subsubsection{异常处理（Exception Handling）}
+
+MinmusOS 通过全面的异常处理机制来增强系统的稳定性和安全性。内核设计包括对硬件和软件异常的捕获和处理，如中断、页错误和其他 CPU 异常。通过定义异常处理程序，系统能够优雅地响应未预料的事件，保证系统的连续运行或安全地失败。
+
+\subsubsection{维护性（Maintainability）}
+
+系统的设计允许容易地添加新功能或修改现有功能而不影响其他部分。通过使用版本控制系统（Git），MinmusOS 的维护和更新变得更加高效。代码的组织和文档化也支持快速理解和问题定位。
+
+\subsubsection{模块性（Modularity）}
+
+MinmusOS 的模块性设计允许系统被划分为多个独立的部分，每个部分承担特定的职责。这种设计不仅使得各个模块可以独立开发、测试和维护，而且通过定义清晰的接口，减少了模块间的依赖关系，提高了整个系统的灵活性和可维护性。
+
+\subsubsection{扩展性（Scalability）}
+
+MinmusOS 在设计时考虑到了扩展性，确保系统可以随着需求的增长而适应。系统支持动态加载和卸载功能模块，允许用户根据需要调整系统配置和资源利用，从而在用户和功能数量增加时仍能保持良好的性能和响应速度。
+
+\subsubsection{安全性（Security）}
+
+安全性是 MinmusOS 设计的核心之一，系统采用多种机制确保运行的安全。利用 Rust 语言的内存安全特性，系统有效防止了内存泄漏和越界错误。此外，通过实施严格的访问控制和使用最小权限原则，MinmusOS 保护系统免受未授权访问和潜在的恶意攻击。
 
 \subsection{系统架构设计}
+
+MinmusOS 主要由四个模块组成：引导程序（Bootloader）、内核（Kernel）、标准运行库（Standard Runtime Library）和应用程序（Applications）：
+
+\begin{enumerate}
+    \item \textbf{引导程序（Bootloader）}：MinmusOS的引导程序负责系统启动的初始阶段。它首先在实模式下运行，设置必要的环境后转入保护模式。
+          \begin{enumerate}
+              \item \textbf{主引导记录}：存储在硬盘的第一个扇区，负责加载引导程序的其余部分。MBR还包含了分区表，指明硬盘的分区信息。
+              \item \textbf{BIOS中断}：利用BIOS提供的中断调用来实现基本的输入输出系统功能，如读取磁盘数据和显示信息。
+              \item \textbf{磁盘读取器}：一个专门的模块，用于从磁盘读取操作系统的内核数据到内存。
+              \item \textbf{实模式}：CPU的一种操作模式，允许引导程序访问系统的基础硬件资源，如内存和I/O端口。
+              \item \textbf{保护模式}：引导程序将系统从实模式切换到保护模式以支持更高级的功能，如虚拟内存和多任务处理。
+              \item \textbf{全局描述符表}：在保护模式下使用，用于定义不同的内存段，如代码段和数据段。
+              \item \textbf{打印器}：在系统启动过程中用于输出调试信息到屏幕或其他输出设备。
+          \end{enumerate}
+    \item \textbf{内核（Kernel）}：MinmusOS的内核是系统的核心，处理所有基本的系统任务，如进程管理、内存管理和设备驱动。
+          \begin{enumerate}
+              \item \textbf{中断}：处理硬件和软件中断，使内核能响应外部事件，如硬件信号或软件异常。
+              \item \textbf{驱动程序}：内核包含各种设备驱动程序，使其能够控制和管理硬件设备。
+              \item \textbf{多任务处理}：实现进程调度和管理，允许多个程序并发运行，优化CPU使用。
+              \item \textbf{系统调用}：提供一个接口供应用程序请求内核服务，如文件操作和进程管理。
+              \item \textbf{VGA文本模式}：利用VGA硬件实现文本输出，用于显示系统信息和用户界面。
+              \item \textbf{内存管理}：包括虚拟内存管理和物理内存分配，确保有效利用内存资源。
+              \item \textbf{文件系统}：实现文件的存储、检索和管理，支持数据的持久化。
+              \item \textbf{定时器}：提供计时功能，支持操作系统和应用程序的时间管理需求。
+              \item \textbf{命令行解释器}：允许用户通过命令行界面与系统交互，执行各种命令。
+          \end{enumerate}
+    \item \textbf{标准运行库（Standard Runtime Library）}：标准运行库提供一组基础库和工具，支持内核和应用程序的运行。
+          \begin{enumerate}
+              \item \textbf{math库}：支持各种数学运算，如加减乘除和三角函数。
+              \item \textbf{mutex库}：实现互斥锁，支持多线程或多进程间的同步。
+              \item \textbf{print库}：提供基本的文本输出功能，用于在终端或其他设备上显示信息。
+              \item \textbf{rand库}：包含多种随机数生成方法，为系统和应用程序提供随机性支持
+              \item \textbf{sort库}：实现各种排序算法，如快速排序和归并排序，供程序处理数据时使用。
+              \item \textbf{string库}：提供字符串处理功能，如字符串拼接、分割和搜索。
+          \end{enumerate}
+    \item \textbf{应用程序（Applications）}：MinmusOS支持用户编写和运行应用程序。系统提供了一套应用程序编程接口（API），以及用于编译和链接应用程序的脚本。应用程序可以直接使用内核提供的系统调用，以及标准运行库中的功能。
+\end{enumerate}
+
+\label{fig:SystemArchitecture}展示了MinmusOS的系统架构。
+
+此架构设计旨在提供一个模块化和可扩展的操作系统，每个部分都有明确的职责，相互协作以提供高效稳定的系统运行。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\textwidth]{figures/SystemArchitecture.png}
+    \caption{MinmusOS系统架构}
+    \label{fig:SystemArchitecture}
+\end{figure}
 
 \subsection{系统技术选型}\label{sec:SystemTechnicalSelection}
 
@@ -149,3 +233,97 @@ Rust 通过其独特的语言设计和强大的编译时检查机制，提供了
 \textbf{仿真与虚拟化}：IA-32 支持多种仿真和虚拟化平台，这些平台可以模拟不同的硬件配置，允许开发者在虚拟环境中快速验证操作系统的功能和性能。在虚拟环境中进行测试，不仅可以减少对物理硬件的依赖，还能够模拟各种不同的运行场景，提升系统的可靠性。
 
 \subsection{项目结构设计}
+
+\begin{minted}[baselinestretch=1]{text}
+MinmusOS
+|--.cargo
+|  `--config.toml
+|--apps
+|  `--hanoi
+|     |--src
+|     |  `--main.rs
+|     |--build.rs
+|     |--Cargo.toml
+|     `--linker.ld
+|--boot
+|  |--src
+|  |  |--boot.asm
+|  |  |--disk.rs
+|  |  `--main.rs
+|  |--build.rs
+|  |--Cargo.toml
+|  `--linker.ld
+|--bootloader
+|  |--src
+|  |  |--disk.rs
+|  |  |--gdt.rs
+|  |  |--main.rs
+|  |  `--print.rs
+|  |--build.rs
+|  |--Cargo.toml
+|  `--linker.ld
+|--files
+|  |--cargo
+|  |--license
+|  |--minmusos
+|  |--rust
+|  `--thanks
+|--kernel
+|  |--src
+|  |  |--drivers
+|  |  |  |--disk.rs
+|  |  |  |--keyboard.rs
+|  |  |  |--mod.rs
+|  |  |  `--pic.rs
+|  |  |--filesystem
+|  |  |  |--fat.rs
+|  |  |  `--mod.rs
+|  |  |--interrupts
+|  |  |  |--exceptions.rs
+|  |  |  |--idt.rs
+|  |  |  |--mod.rs
+|  |  |  `--timer.rs
+|  |  |--memory
+|  |  |  |--allocator.rs
+|  |  |  |--mod.rs
+|  |  |  `--paging.rs
+|  |  |--multitasking
+|  |  |  |--mod.rs
+|  |  |  `--task.rs
+|  |  |--shell
+|  |  |  |--cal.rs
+|  |  |  |--color.rs
+|  |  |  |--echo.rs
+|  |  |  |--kill.rs
+|  |  |  |--mod.rs
+|  |  |  `--shell.rs
+|  |  |--syscalls
+|  |  |  |--handler.rs
+|  |  |  |--mod.rs
+|  |  |  `--print.rs
+|  |  |--timer
+|  |  |  |--mod.rs
+|  |  |  `--time.rs
+|  |  `--main.rs
+|  |--build.rs
+|  |--Cargo.toml
+|  `--linker.ld
+|--lib
+|  |--src
+|  |  |--lib.rs
+|  |  |--math.rs
+|  |  |--mutex.rs
+|  |  |--print.rs
+|  |  |--rand.rs
+|  |  |--sort.rs
+|  |  `--string.rs
+|  `--Cargo.toml
+|--.gitignore
+|--Cargo.lock
+|--Cargo.toml
+|--Makefile
+|--rust-toolchain.toml
+|--test.py
+|--x86_16-minmus.json
+`--x86_32-minmus.json    
+\end{minted}
