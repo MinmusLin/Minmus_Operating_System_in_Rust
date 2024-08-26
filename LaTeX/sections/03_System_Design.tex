@@ -83,7 +83,7 @@ MinmusOS 主要由四个模块组成：引导程序（Bootloader）、内核（K
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\textwidth]{figures/SystemArchitecture.jpg}
+    \includegraphics[width=\textwidth]{figures/SystemArchitecture.png}
     \caption{MinmusOS系统架构}
     \label{fig:SystemArchitecture}
 \end{figure}
@@ -237,95 +237,93 @@ Rust 通过其独特的语言设计和强大的编译时检查机制，提供了
 MinmusOS按照如下目录结构来组织代码：
 
 \begin{minted}[baselinestretch=1]{text}
-MinmusOS
-|--.cargo
-|  `--config.toml
-|--apps
-|  `--hanoi
-|     |--src
-|     |  `--main.rs
-|     |--build.rs
-|     |--Cargo.toml
-|     `--linker.ld
-|--boot
-|  |--src
-|  |  |--boot.asm
-|  |  |--disk.rs
-|  |  `--main.rs
-|  |--build.rs
-|  |--Cargo.toml
-|  `--linker.ld
-|--bootloader
-|  |--src
-|  |  |--disk.rs
-|  |  |--gdt.rs
-|  |  |--main.rs
-|  |  `--print.rs
-|  |--build.rs
-|  |--Cargo.toml
-|  `--linker.ld
-|--files
-|  |--cargo
-|  |--license
-|  |--minmusos
-|  |--rust
-|  `--thanks
-|--kernel
-|  |--src
-|  |  |--drivers
-|  |  |  |--disk.rs
-|  |  |  |--keyboard.rs
-|  |  |  |--mod.rs
-|  |  |  `--pic.rs
-|  |  |--filesystem
-|  |  |  |--fat.rs
-|  |  |  `--mod.rs
-|  |  |--interrupts
-|  |  |  |--exceptions.rs
-|  |  |  |--idt.rs
-|  |  |  |--mod.rs
-|  |  |  `--timer.rs
-|  |  |--memory
-|  |  |  |--allocator.rs
-|  |  |  |--mod.rs
-|  |  |  `--paging.rs
-|  |  |--multitasking
-|  |  |  |--mod.rs
-|  |  |  `--task.rs
-|  |  |--shell
-|  |  |  |--cal.rs
-|  |  |  |--color.rs
-|  |  |  |--echo.rs
-|  |  |  |--kill.rs
-|  |  |  |--mod.rs
-|  |  |  `--shell.rs
-|  |  |--syscalls
-|  |  |  |--handler.rs
-|  |  |  |--mod.rs
-|  |  |  `--print.rs
-|  |  |--timer
-|  |  |  |--mod.rs
-|  |  |  `--time.rs
-|  |  `--main.rs
-|  |--build.rs
-|  |--Cargo.toml
-|  `--linker.ld
-|--lib
-|  |--src
-|  |  |--lib.rs
-|  |  |--math.rs
-|  |  |--mutex.rs
-|  |  |--print.rs
-|  |  |--rand.rs
-|  |  |--sort.rs
-|  |  `--string.rs
-|  `--Cargo.toml
-|--.gitignore
-|--Cargo.lock
-|--Cargo.toml
-|--Makefile
-|--rust-toolchain.toml
-|--test.py
-|--x86_16-minmus.json
-`--x86_32-minmus.json    
+MinmusOS                        // MinmusOS 源代码
+|--.cargo                       // 项目配置
+|  `--config.toml               // 项目工作空间和编译选项配置文件
+|--apps                         // 应用程序
+|  `--hanoi                     // 汉诺塔解决方案应用程序
+|     |--src                    // 汉诺塔解决方案应用程序源代码
+|     |  `--main.rs             // 汉诺塔解决方案应用程序入口
+|     |--build.rs               // 汉诺塔解决方案应用程序构建脚本
+|     |--Cargo.toml             // 汉诺塔解决方案应用程序 Rust 配置文件
+|     `--linker.ld              // 汉诺塔解决方案应用程序链接器脚本
+|--boot                         // 第一阶段引导：实模式
+|  |--src                       // 第一阶段引导源代码
+|  |  |--boot.asm               // 启动模块
+|  |  |--disk.rs                // 磁盘读取器
+|  |  `--main.rs                // 第一阶段引导主启动程序
+|  |--build.rs                  // 第一阶段引导构建脚本
+|  |--Cargo.toml                // 第一阶段引导 Rust 配置文件
+|  `--linker.ld                 // 第一阶段引导链接器脚本
+|--bootloader                   // 第二阶段引导：保护模式与内核加载
+|  |--src                       // 第二阶段引导源代码
+|  |  |--disk.rs                // 磁盘读取器
+|  |  |--gdt.rs                 // 全局描述符表
+|  |  |--main.rs                // 第二阶段引导主启动程序
+|  |  `--print.rs               // 打印器
+|  |--build.rs                  // 第二阶段引导构建脚本
+|  |--Cargo.toml                // 第二阶段引导 Rust 配置文件
+|  `--linker.ld                 // 第二阶段引导链接器脚本
+|--files                        // 示例文本文件
+|  |--cargo                     // Cargo 包管理器介绍
+|  |--license                   // MinmusOS 项目 MIT 许可证文件
+|  |--minmusos                  // MinmusOS 欢迎文件与联系方式
+|  |--rust                      // Rust 语言介绍
+|  `--thanks                    // 致谢
+|--kernel                       // 内核
+|  |--src                       // 内核源代码
+|  |  |--drivers                // 驱动程序
+|  |  |  |--disk.rs             // 高级技术附件磁盘驱动程序
+|  |  |  |--keyboard.rs         // 键盘驱动程序
+|  |  |  |--mod.rs              // 驱动程序模块文件
+|  |  |  `--pic.rs              // 可编程中断控制器驱动程序
+|  |  |--filesystem             // 文件系统
+|  |  |  |--fat.rs              // FAT16 文件系统
+|  |  |  `--mod.rs              // 文件系统模块文件
+|  |  |--interrupts             // 中断
+|  |  |  |--exceptions.rs       // CPU 异常
+|  |  |  |--idt.rs              // 中断描述符表
+|  |  |  |--mod.rs              // 中断模块文件
+|  |  |  `--timer.rs            // 上下文切换
+|  |  |--memory                 // 内存管理
+|  |  |  |--allocator.rs        // 内存分配器
+|  |  |  |--mod.rs              // 内存管理模块文件
+|  |  |  `--paging.rs           // 分页管理器
+|  |  |--multitasking           // 多任务处理
+|  |  |  |--mod.rs              // 多任务处理模块文件
+|  |  |  `--task.rs             // CPU 调度器与任务管理器
+|  |  |--shell                  // 命令行解释器
+|  |  |  |--cal.rs              // cal 命令
+|  |  |  |--color.rs            // color 命令
+|  |  |  |--echo.rs             // echo 命令
+|  |  |  |--kill.rs             // kill 命令
+|  |  |  |--mod.rs              // 命令行解释器模块文件
+|  |  |  `--shell.rs            // 命令行解释器
+|  |  |--syscalls               // 系统调用
+|  |  |  |--handler.rs          // 系统调用处理器
+|  |  |  |--mod.rs              // 系统调用模块文件
+|  |  |  `--print.rs            // VGA 文本模式
+|  |  |--timer                  // 定时器
+|  |  |  |--mod.rs              // 定时器模块文件
+|  |  |  `--time.rs             // 定时器
+|  |  `--main.rs                // 内核主启动程序
+|  |--build.rs                  // 内核构建脚本
+|  |--Cargo.toml                // 内核 Rust 配置文件
+|  `--linker.ld                 // 内核链接器脚本
+|--lib                          // 标准运行库
+|  |--src                       // 标准运行库源代码
+|  |  |--lib.rs                 // lib 库
+|  |  |--math.rs                // math 库
+|  |  |--mutex.rs               // mutex 库
+|  |  |--print.rs               // print 库
+|  |  |--rand.rs                // rand 库
+|  |  |--sort.rs                // sort 库
+|  |  `--string.rs              // string 库
+|  `--Cargo.toml                // 标准运行库 Rust 配置文件
+|--Cargo.lock                   // Rust 项目依赖配置文件
+|--Cargo.toml                   // Rust 配置文件
+|--Makefile                     // 项目自动化构建过程（Makefile）配置文件
+|--rust-toolchain.toml          // Rust 工具链配置文件
+|--x86_16-minmus.json           // x86_16 硬件平台的目标配置文件
+`--x86_32-minmus.json           // x86_32 硬件平台的目标配置文件
 \end{minted}

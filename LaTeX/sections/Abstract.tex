@@ -1,5 +1,13 @@
 \MakeAbstract{
-    摘要。
+    随着技术的不断进步，操作系统的安全性和效率成为了研究和开发的重点。传统上，操作系统多采用C语言开发，虽然这种语言提供了高效的系统级底层操作能力，但同时也带来了许多内存安全问题，如缓冲区溢出和空指针解引用等。为了解决这些问题，越来越多的开发者和研究者开始探索使用Rust语言来开发操作系统，因为Rust语言提供了保证内存安全的机制，而不牺牲性能。
+
+    MinmusOS是一个基于Rust语言和Intel IA-32（x86）架构开发的多任务操作系统，它实现了系统内核与用户空间的分离，并允许用户使用标准运行库开发用户应用程序。其核心功能涵盖从引导过程到多层次的系统管理。引导程序负责启动系统，切换到保护模式，并加载内核。内核功能包括中断管理、异常处理、设备驱动（如键盘和磁盘）、任务调度、系统调用、内存管理以及一个基于FAT16的文件系统。此外，内核还支持VGA文本模式输出和实时时钟管理。标准运行库提供数学计算、互斥同步、输出打印、随机数生成、数据排序和字符串处理等基本功能。系统还包括一些基本应用程序，如汉诺塔解决方案，展示了如何使用这些库来开发更复杂的用户空间应用程序。
+
+    在技术实现方面，MinmusOS充分利用了Rust语言的核心特性——所有权和借用机制，来应对传统操作系统开发中的一些关键挑战。这些挑战主要包括内存泄漏和并发执行中的数据竞争等问题。Rust通过其独特的所有权系统，确保了每个数据只有一个清晰的所有者，并且通过编译时的生命周期和借用检查，它可以在不牺牲性能的前提下，防止空指针解引用、双重释放等内存安全问题。整体而言，MinmusOS通过其模块化的设计展示了Rust语言在系统级编程中的强大潜力和内存安全特性。
+
+    综上，MinmusOS通过结合Rust语言的内存安全特性和高效的系统设计，提供了一个稳定且功能丰富的操作系统框架，展示了现代编程语言在解决传统操作系统开发挑战中的有效性和潜力。
+
+    \vspace{16pt}
 
     本项目所有源代码均已在GitHub平台上开源发布，并遵循MIT许可证协议。GitHub仓库地址：\url{https://github.com/MinmusLin/Minmus\_Operating\_System\_in\_Rust}.
 
@@ -9,7 +17,15 @@
 }{Rust操作系统开发，Intel IA-32（x86）架构，操作系统内核，引导程序，标准运行库}
 
 \MakeAbstractEng{
-    Abstract.
+    As technology continues to advance, security and efficiency have become focal points in operating system research and development. Traditionally, operating systems have been developed using C, a language that offers efficient low-level system operations but also introduces numerous memory safety issues, such as buffer overflows and null pointer dereferencing. To address these problems, an increasing number of developers and researchers are exploring the use of Rust to develop operating systems because Rust offers mechanisms to ensure memory safety without sacrificing performance.
+
+    MinmusOS is a multitasking operating system developed with Rust and based on the Intel IA-32 (x86) architecture. It features separation between the system kernel and user space, allowing users to develop applications with standard runtime libraries. Its core functionalities range from the boot process to multilevel system management. The bootloader is responsible for starting the system, switching to protected mode, and loading the kernel. Kernel functionalities include interrupt management, exception handling, device drivers (such as keyboards and disks), task scheduling, system calls, memory management, and a FAT16-based file system. Additionally, the kernel supports VGA text mode output and real-time clock management. The standard runtime libraries provide basic functionalities like mathematical computations, mutex synchronization, output printing, random number generation, data sorting, and string processing. The system also includes basic applications, such as solutions for the Towers of Hanoi, demonstrating how to use these libraries to develop more complex user-space applications.
+
+    Technically, MinmusOS fully utilizes Rust's core features—ownership and borrowing mechanisms—to address key challenges in traditional operating system development, such as memory leaks and data races during concurrent execution. Rust's unique ownership system ensures that each piece of data has one clear owner, and through compile-time life cycle and borrowing checks, it prevents issues like null pointer dereferencing and double-freeing without sacrificing performance. Overall, MinmusOS showcases Rust's strong potential and memory safety features in system-level programming through its modular design.
+
+    In summary, by integrating Rust's memory safety features with an efficient system design, MinmusOS provides a stable and feature-rich operating system framework, demonstrating the effectiveness and potential of modern programming languages in addressing traditional operating system development challenges.
+
+    \vspace{16pt}
 
     All source code of this project has been open-sourced on the GitHub platform and is released under the MIT License. The GitHub repository can be found at \url{https://github.com/MinmusLin/Minmus\_Operating\_System\_in\_Rust}.
 
