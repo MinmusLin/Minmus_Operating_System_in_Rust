@@ -77,13 +77,13 @@ MinmusOS 主要由四个模块组成：引导程序（Bootloader）、内核（K
     \item \textbf{应用程序（Applications）}：MinmusOS支持用户编写和运行应用程序。系统提供了一套应用程序编程接口（API），以及用于编译和链接应用程序的脚本。应用程序可以直接使用内核提供的系统调用，以及标准运行库中的功能。
 \end{enumerate}
 
-\label{fig:SystemArchitecture}展示了MinmusOS的系统架构。
+\cref{fig:SystemArchitecture}展示了MinmusOS的系统架构。
 
 此架构设计旨在提供一个模块化和可扩展的操作系统，每个部分都有明确的职责，相互协作以提供高效稳定的系统运行。
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\textwidth]{figures/SystemArchitecture.png}
+    \includegraphics[width=\textwidth]{figures/SystemArchitecture.jpg}
     \caption{MinmusOS系统架构}
     \label{fig:SystemArchitecture}
 \end{figure}
@@ -233,6 +233,8 @@ Rust 通过其独特的语言设计和强大的编译时检查机制，提供了
 \textbf{仿真与虚拟化}：IA-32 支持多种仿真和虚拟化平台，这些平台可以模拟不同的硬件配置，允许开发者在虚拟环境中快速验证操作系统的功能和性能。在虚拟环境中进行测试，不仅可以减少对物理硬件的依赖，还能够模拟各种不同的运行场景，提升系统的可靠性。
 
 \subsection{项目结构设计}
+
+MinmusOS按照如下目录结构来组织代码：
 
 \begin{minted}[baselinestretch=1]{text}
 MinmusOS
