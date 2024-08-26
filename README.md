@@ -64,6 +64,17 @@ MinmusOS 的功能：
   * 汉诺塔解决方案应用程序
   * 允许用户使用标准运行库开发用户应用程序
 
+## 项目组成
+
+* `/LaTeX`
+项目说明文档 $\LaTeX$ 源代码
+
+* `/MinmusOS`
+MinmusOS 源代码
+
+* `Documentation.pdf`
+MinmusOS 项目说明文档
+
 ## 开发环境
 
 本项目的开发环境如下：
@@ -81,17 +92,6 @@ MinmusOS 的功能：
 ## 系统架构
 
 ![](assets/SystemArchitecture.png)
-
-## 项目组成
-
-* `/LaTeX`
-项目说明文档 $\LaTeX$ 源代码
-
-* `/MinmusOS`
-MinmusOS 源代码
-
-* `Documentation.pdf`
-MinmusOS 项目说明文档
 
 ## 系统演示
 
