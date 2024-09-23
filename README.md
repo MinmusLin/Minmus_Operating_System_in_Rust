@@ -23,7 +23,7 @@ Minmus_Operating_System_in_Rust
 
 MinmusOS: The design and implementation of an operating system based on Rust language.
 
-MinmusOS: 基于 Rust 语言的操作系统的设计与实现。
+MinmusOS：基于 Rust 语言的操作系统的设计与实现。
 
 > ***Relevant course***
 > * Operating System Course Project 2024 (2024年同济大学操作系统课程设计)
@@ -134,4 +134,4 @@ The code and materials contained in this repository are intended for personal le
 
 ## 文档更新日期
 
-2024年8月27日
+2024年9月23日
