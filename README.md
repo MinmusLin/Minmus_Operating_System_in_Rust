@@ -1,5 +1,12 @@
 # Minmus Operating System in Rust
 
+> [!CAUTION]
+> ### 免责声明 | Disclaimer
+>
+> The code and materials contained in this repository are intended for personal learning and research purposes only and may not be used for any commercial purposes. Other users who download or refer to the content of this repository must strictly adhere to the **principles of academic integrity** and must not use these materials for any form of homework submission or other actions that may violate academic honesty. I am not responsible for any direct or indirect consequences arising from the improper use of the contents of this repository. Please ensure that your actions comply with the regulations of your school or institution, as well as applicable laws and regulations, before using this content. If you have any questions, please contact me via [email](mailto:minmuslin@outlook.com).
+>
+> 本仓库包含的代码和资料仅用于个人学习和研究目的，不得用于任何商业用途。请其他用户在下载或参考本仓库内容时，严格遵守**学术诚信原则**，不得将这些资料用于任何形式的作业提交或其他可能违反学术诚信的行为。本人对因不恰当使用仓库内容导致的任何直接或间接后果不承担责任。请在使用前务必确保您的行为符合所在学校或机构的规定，以及适用的法律法规。如有任何问题，请通过[电子邮件](mailto:minmuslin@outlook.com)与我联系。
+
 > [!TIP]
 > For more details, please refer to the [MinmusOS Project Documentation](Documentation.pdf) (200 pages, 6.03 MB)
 >
@@ -15,18 +22,12 @@
 >   <img src="assets/Contents_6.png" width="30%">
 > </p>
 
-## 项目名称
-
-Minmus_Operating_System_in_Rust
-
-## 项目简介
-
 MinmusOS: The design and implementation of an operating system based on Rust language.
 
 MinmusOS：基于 Rust 语言的操作系统的设计与实现。
 
 > ***Relevant course***
-> * Operating System Course Project 2024 (2024年同济大学操作系统课程设计)
+> * Operating System Course Project 2024 (2024 年同济大学操作系统课程设计)
 
 MinmusOS 是一个基于 Rust 语言和 Intel IA-32（x86）架构开发的多任务操作系统，它实现了系统内核与用户空间的分离，并允许用户使用标准运行库开发用户应用程序。
 
@@ -65,9 +66,6 @@ MinmusOS 的功能：
   * 允许用户使用标准运行库开发用户应用程序
 
 ## 项目组成
-
-* `/assets`
-存放 `.md` 文件所需的相关图片资源
 
 * `/LaTeX`
 项目说明文档 $\LaTeX$ 源代码
@@ -125,13 +123,3 @@ MinmusOS 项目说明文档
 自此，我不断在OS Dev Wiki学习并查阅Intel IA-32架构软件开发者手册，逐步完成了引导程序、内核、标准运行库与应用程序的实现。从最初学习和复现别人的代码，到逐渐成长为能够独立实现自定义功能的开发者，甚至为开源社区贡献代码、修复Bug，我感受到自己编程能力的巨大进步，也体会到了从无到有实现一个项目的成就感。回首整个项目，于我而言，这不仅仅是一项课程设计，更是我技术生涯中的重要里程碑。
 
 在此，我要衷心感谢张惠娟老师和王冬青老师对于操作系统理论的教授，并让我有这个机会从零开始实现一个操作系统。感谢开源社区和OS Dev Wiki的贡献者们，是你们的无私分享让我不断增加对操作系统开发的理解。更要感谢一路坚持、没有因为技术难题而放弃的自己。最后，感谢阅读至此的你，愿你也能在自己的学习与探索中找到属于自己的光芒。
-
-## 免责声明
-
-The code and materials contained in this repository are intended for personal learning and research purposes only and may not be used for any commercial purposes. Other users who download or refer to the content of this repository must strictly adhere to the **principles of academic integrity** and must not use these materials for any form of homework submission or other actions that may violate academic honesty. I am not responsible for any direct or indirect consequences arising from the improper use of the contents of this repository. Please ensure that your actions comply with the regulations of your school or institution, as well as applicable laws and regulations, before using this content. If you have any questions, please contact me via [email](mailto:minmuslin@outlook.com).
-
-本仓库包含的代码和资料仅用于个人学习和研究目的，不得用于任何商业用途。请其他用户在下载或参考本仓库内容时，严格遵守**学术诚信原则**，不得将这些资料用于任何形式的作业提交或其他可能违反学术诚信的行为。本人对因不恰当使用仓库内容导致的任何直接或间接后果不承担责任。请在使用前务必确保您的行为符合所在学校或机构的规定，以及适用的法律法规。如有任何问题，请通过[电子邮件](mailto:minmuslin@outlook.com)与我联系。
-
-## 文档更新日期
-
-2024年9月23日
