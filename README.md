@@ -73,7 +73,7 @@ MinmusOS 的功能：
 * [MinmusOS](MinmusOS)
 MinmusOS 源代码
 
-* [Documentation](Documentation.pdf)
+* [Documentation.pdf](Documentation.pdf)
 MinmusOS 项目说明文档
 
 ## 开发环境
